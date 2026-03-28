@@ -712,7 +712,16 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
       }
 
       try {
-        const permission = await Notification.requestPermission();
+        let permission = Notification.permission;
+        if (permission !== 'granted') {
+          permission = await new Promise((resolve) => {
+            const promise = Notification.requestPermission(resolve);
+            if (promise) {
+              promise.then(resolve);
+            }
+          });
+        }
+
         if (permission !== 'granted') {
           alert("Permission denied for notifications.");
           return;
@@ -722,16 +731,27 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
         const activeRegistration = await navigator.serviceWorker.ready;
         
         const response = await fetch('/api/vapidPublicKey');
-        if (!response.ok) throw new Error('Failed to fetch VAPID key');
-        const vapidPublicKey = await response.text();
+        if (!response.ok) throw new Error(`Failed to fetch VAPID key: ${response.statusText}`);
+        const vapidPublicKey = (await response.text()).trim();
+        
+        if (!vapidPublicKey) {
+          throw new Error('VAPID key is empty');
+        }
+
         const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
         
-        const subscription = await activeRegistration.pushManager.subscribe({
+        // If there's an existing subscription (e.g. from an old VAPID key), unsubscribe first
+        let subscription = await activeRegistration.pushManager.getSubscription();
+        if (subscription) {
+          await subscription.unsubscribe();
+        }
+
+        subscription = await activeRegistration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: convertedVapidKey
         });
 
-        await fetch('/api/subscribe', {
+        const subResponse = await fetch('/api/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -741,6 +761,10 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
           })
         });
+
+        if (!subResponse.ok) {
+          throw new Error('Failed to save subscription on server');
+        }
 
         setRemindersEnabled(true);
         onUpdateSettings({ ...state.settings, remindersEnabled: true, reminderTime });
