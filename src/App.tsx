@@ -8,8 +8,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Plus, TrendingDown, TrendingUp, Calendar, Target, History, 
   Settings as SettingsIcon, Info, ChevronRight, Download, Upload, 
-  Trash2, CheckCircle2, AlertCircle, Eye, EyeOff, Sliders,
-  Check, LayoutDashboard, BarChart3, ArrowRight, Minus
+  Trash2, CheckCircle2, AlertCircle, Eye, LogOut, Sliders,
+  Check, LayoutDashboard, BarChart3, ArrowRight, Minus, Flame, Bell, BellOff
 } from 'lucide-react';
 import { format, parseISO, addDays, differenceInDays, startOfWeek } from 'date-fns';
 import { 
@@ -305,6 +305,7 @@ function Dashboard({ state, onLogClick }: { state: AppState, onLogClick: () => v
   const completed = useMemo(() => analyticsService.getCompletedMilestones(state.entries, state.goal!), [state.entries, state.goal]);
   const nextMilestone = milestones.find(m => !completed.find(c => c.id === m.id));
   const predictions = useMemo(() => analyticsService.getPredictions(state.entries, state.goal!, state.settings.smoothingWindow), [state.entries, state.goal, state.settings.smoothingWindow]);
+  const streak = useMemo(() => analyticsService.getStreak(state.entries), [state.entries]);
 
   const displayWeight = (w: number) => state.settings.hideRawNumbers ? '—' : w.toFixed(1);
 
@@ -325,6 +326,20 @@ function Dashboard({ state, onLogClick }: { state: AppState, onLogClick: () => v
           </h2>
         </div>
       </header>
+
+      {streak.current > 0 && (
+        <div className={cn("p-4 rounded-2xl flex items-center justify-between border", streak.isNewRecord && streak.current > 1 ? "bg-amber-50 border-amber-200 text-amber-900" : "bg-brand-50 border-brand-100 text-brand-900")}>
+           <div className="flex items-center gap-3">
+             <div className={cn("p-2 rounded-xl", streak.isNewRecord && streak.current > 1 ? "bg-amber-100" : "bg-brand-100")}>
+               <Flame size={20} className={streak.isNewRecord && streak.current > 1 ? "text-amber-600" : "text-brand-600"} />
+             </div>
+             <div>
+               <p className="font-bold">{streak.current} Day Streak!</p>
+               <p className="text-xs opacity-80">{streak.isNewRecord && streak.current > 1 ? "New personal record! Keep it up!" : `Longest streak: ${streak.longest} days`}</p>
+             </div>
+           </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <StatCard label="Today's Weight" value={latest ? displayWeight(latest.weight) : '—'} unit={state.goal?.unit} subValue={latest ? `Trend: ${latest.trendWeight.toFixed(1)}` : ''} trend="neutral" />
@@ -668,6 +683,108 @@ function PredictionCard({ label, date, color }: any) {
 
 function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, onExport, onImportJson, onImportCsv, onReset, onSignOut }: any) {
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [remindersEnabled, setRemindersEnabled] = useState(state.settings.remindersEnabled || false);
+  const [reminderTime, setReminderTime] = useState(state.settings.reminderTime || '08:00');
+  const [pushSupported, setPushSupported] = useState('serviceWorker' in navigator && 'PushManager' in window);
+
+  // Helper function for VAPID key
+  const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
+
+  const handleToggleReminders = async (enabled: boolean) => {
+    if (!pushSupported) {
+      alert("Push notifications are not supported on this device/browser. On iOS, you must add this app to your Home Screen first.");
+      return;
+    }
+
+    if (enabled) {
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          alert("Permission denied for notifications.");
+          return;
+        }
+
+        const registration = await navigator.serviceWorker.register('/sw.js');
+        const response = await fetch('/api/vapidPublicKey');
+        const vapidPublicKey = await response.text();
+        const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
+        
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: convertedVapidKey
+        });
+
+        await fetch('/api/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            subscription,
+            userId: state.uid || 'anonymous',
+            time: reminderTime,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+          })
+        });
+
+        setRemindersEnabled(true);
+        onUpdateSettings({ ...state.settings, remindersEnabled: true, reminderTime });
+        setStatus({ type: 'success', message: 'Reminders enabled!' });
+      } catch (error) {
+        console.error("Error enabling reminders:", error);
+        setStatus({ type: 'error', message: 'Failed to enable reminders.' });
+      }
+    } else {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
+        if (subscription) {
+          await subscription.unsubscribe();
+        }
+        
+        await fetch('/api/unsubscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: state.uid || 'anonymous' })
+        });
+
+        setRemindersEnabled(false);
+        onUpdateSettings({ ...state.settings, remindersEnabled: false });
+        setStatus({ type: 'success', message: 'Reminders disabled.' });
+      } catch (error) {
+        console.error("Error disabling reminders:", error);
+      }
+    }
+  };
+
+  const handleTimeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTime = e.target.value;
+    setReminderTime(newTime);
+    onUpdateSettings({ ...state.settings, reminderTime: newTime });
+    
+    if (remindersEnabled) {
+      handleToggleReminders(true); // Re-subscribe to update time on server
+    }
+  };
+
+  const handleTestNotification = async () => {
+    try {
+      await fetch('/api/test-notification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: state.uid || 'anonymous' })
+      });
+    } catch (error) {
+      console.error("Error sending test notification:", error);
+    }
+  };
 
   const handleCsv = async (file: File) => {
     try {
@@ -711,7 +828,7 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
           className="p-3 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-all active:scale-95"
           title="Sign Out"
         >
-          <EyeOff size={20} />
+          <LogOut size={20} />
         </button>
       </header>
       
@@ -833,6 +950,69 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
                   )} />
                 </button>
               </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-8 rounded-2xl border border-line shadow-sm space-y-8">
+            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Notifications</h3>
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold text-ink flex items-center gap-2">
+                    {remindersEnabled ? <Bell size={16} className="text-brand-500" /> : <BellOff size={16} className="text-slate-400" />}
+                    Daily Reminders
+                  </p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Lockscreen push notifications</p>
+                </div>
+                <button 
+                  onClick={() => handleToggleReminders(!remindersEnabled)}
+                  className={cn(
+                    "w-12 h-6 rounded-full transition-all relative",
+                    remindersEnabled ? "bg-brand-500" : "bg-slate-200"
+                  )}
+                >
+                  <div className={cn(
+                    "absolute top-1 w-4 h-4 bg-[#ffffff] rounded-full transition-all",
+                    remindersEnabled ? "left-7" : "left-1"
+                  )} />
+                </button>
+              </div>
+              
+              <AnimatePresence>
+                {remindersEnabled && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="space-y-4 overflow-hidden"
+                  >
+                    <div className="flex items-center justify-between pt-4 border-t border-line">
+                      <div>
+                        <p className="text-sm font-bold text-ink">Reminder Time</p>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">When to notify you</p>
+                      </div>
+                      <input 
+                        type="time" 
+                        value={reminderTime}
+                        onChange={handleTimeChange}
+                        className="p-2 bg-slate-50 rounded-lg font-bold outline-none border border-transparent focus:border-brand-500 text-sm"
+                      />
+                    </div>
+                    <button 
+                      onClick={handleTestNotification}
+                      className="w-full py-3 bg-brand-50 text-brand-700 font-bold rounded-xl text-sm hover:bg-brand-100 transition-colors"
+                    >
+                      Send Test Notification
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              
+              {!pushSupported && (
+                <p className="text-xs text-amber-600 bg-amber-50 p-3 rounded-xl border border-amber-100">
+                  Push notifications are not supported in this browser. If you are on iOS, tap "Share" and "Add to Home Screen" to enable them.
+                </p>
+              )}
             </div>
           </div>
 

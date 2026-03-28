@@ -21,6 +21,8 @@ export interface AppSettings {
   smoothingWindow: number; // default 10
   hideRawNumbers: boolean;
   darkMode: boolean;
+  remindersEnabled?: boolean;
+  reminderTime?: string;
 }
 
 export interface AppState {

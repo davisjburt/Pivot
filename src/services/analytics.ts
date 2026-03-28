@@ -2,6 +2,65 @@ import { WeightEntry, UserGoal } from '../types';
 import { subDays, isSameDay, parseISO, differenceInDays, addDays, startOfDay } from 'date-fns';
 
 export const analyticsService = {
+  getStreak: (entries: WeightEntry[]) => {
+    if (entries.length === 0) return { current: 0, longest: 0, isNewRecord: false };
+
+    const uniqueDays = new Set<number>();
+    entries.forEach(e => {
+      uniqueDays.add(startOfDay(parseISO(e.date)).getTime());
+    });
+    
+    const daysArray = Array.from(uniqueDays).sort((a, b) => b - a);
+
+    let longest = 0;
+    let tempStreak = 0;
+    let lastDate: Date | null = null;
+
+    // Calculate longest streak
+    for (let i = daysArray.length - 1; i >= 0; i--) { // Iterate chronologically
+      const d = new Date(daysArray[i]);
+      if (!lastDate) {
+        tempStreak = 1;
+      } else {
+        const diff = differenceInDays(d, lastDate);
+        if (diff === 1) {
+          tempStreak++;
+        } else if (diff > 1) {
+          tempStreak = 1;
+        }
+      }
+      if (tempStreak > longest) longest = tempStreak;
+      lastDate = d;
+    }
+
+    let currentStreak = 0;
+    const today = startOfDay(new Date());
+    const yesterday = subDays(today, 1);
+    
+    if (daysArray.length > 0) {
+      const mostRecent = new Date(daysArray[0]);
+      if (isSameDay(mostRecent, today) || isSameDay(mostRecent, yesterday)) {
+        currentStreak = 1;
+        let currDate = mostRecent;
+        for (let i = 1; i < daysArray.length; i++) {
+          const prevDate = new Date(daysArray[i]);
+          if (differenceInDays(currDate, prevDate) === 1) {
+            currentStreak++;
+            currDate = prevDate;
+          } else {
+            break;
+          }
+        }
+      }
+    }
+
+    return {
+      current: currentStreak,
+      longest: longest,
+      isNewRecord: currentStreak > 0 && currentStreak >= longest
+    };
+  },
+
   // Exponential Moving Average for smoothing
   getTrendData: (entries: WeightEntry[], windowSize = 10) => {
     if (entries.length === 0) return [];
