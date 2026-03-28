@@ -23,6 +23,8 @@ export interface AppSettings {
 }
 
 export interface AppState {
+  uid?: string;
+  email?: string;
   goal: UserGoal | null;
   entries: WeightEntry[];
   onboarded: boolean;

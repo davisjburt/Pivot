@@ -1,0 +1,59 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile, goals, and settings",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique user ID" },
+        "email": { "type": "string", "format": "email", "description": "User's email" },
+        "onboarded": { "type": "boolean", "description": "Whether the user has completed onboarding" },
+        "goal": {
+          "type": "object",
+          "properties": {
+            "targetWeight": { "type": "number" },
+            "targetDate": { "type": "string", "format": "date-time" },
+            "startWeight": { "type": "number" },
+            "startDate": { "type": "string", "format": "date-time" },
+            "unit": { "type": "string", "enum": ["lbs", "kg"] },
+            "milestoneSize": { "type": "number" }
+          },
+          "required": ["targetWeight", "startWeight", "startDate", "unit", "milestoneSize"]
+        },
+        "settings": {
+          "type": "object",
+          "properties": {
+            "smoothingWindow": { "type": "number" },
+            "hideRawNumbers": { "type": "boolean" }
+          },
+          "required": ["smoothingWindow", "hideRawNumbers"]
+        }
+      },
+      "required": ["uid", "email", "onboarded"]
+    },
+    "WeightEntry": {
+      "title": "Weight Entry",
+      "description": "A single weight measurement",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "weight": { "type": "number" },
+        "note": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "uid": { "type": "string", "description": "The user ID who owns this entry" }
+      },
+      "required": ["id", "date", "weight", "uid"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile and settings"
+    },
+    "/users/{userId}/entries/{entryId}": {
+      "schema": "WeightEntry",
+      "description": "User's weight history"
+    }
+  }
+}

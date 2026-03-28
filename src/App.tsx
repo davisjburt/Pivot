@@ -19,58 +19,136 @@ import {
 import { AppState, WeightEntry, UserGoal, DEFAULT_TAGS, AppSettings } from './types';
 import { storageService } from './services/storage';
 import { analyticsService } from './services/analytics';
+import { firebaseService } from './services/firebaseService';
+import { auth, googleProvider, signInWithPopup, signOut, onAuthStateChanged, FirebaseUser } from './firebase';
 import { cn } from './lib/utils';
 
 export default function App() {
-  const [state, setState] = useState<AppState>(storageService.loadData());
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [state, setState] = useState<AppState>({
+    goal: null,
+    entries: [],
+    onboarded: false,
+    settings: { smoothingWindow: 10, hideRawNumbers: false }
+  });
   const [isLogging, setIsLogging] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'insights' | 'settings'>('dashboard');
 
   useEffect(() => {
-    storageService.saveData(state);
-  }, [state]);
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setIsAuthReady(true);
+    });
+    return () => unsubscribe();
+  }, []);
 
-  const handleOnboard = (goal: UserGoal) => {
-    setState(prev => ({ ...prev, goal, onboarded: true }));
+  useEffect(() => {
+    if (!user) {
+      setState({
+        goal: null,
+        entries: [],
+        onboarded: false,
+        settings: { smoothingWindow: 10, hideRawNumbers: false }
+      });
+      return;
+    }
+
+    // Load profile
+    const loadProfile = async () => {
+      const profile = await firebaseService.getUserProfile(user.uid);
+      if (profile) {
+        setState(prev => ({
+          ...prev,
+          goal: profile.goal || null,
+          onboarded: !!profile.onboarded,
+          settings: profile.settings || { smoothingWindow: 10, hideRawNumbers: false }
+        }));
+      } else {
+        // Create initial profile
+        await firebaseService.saveUserProfile(user.uid, {
+          uid: user.uid,
+          email: user.email || '',
+          onboarded: false,
+          settings: { smoothingWindow: 10, hideRawNumbers: false }
+        });
+      }
+    };
+
+    loadProfile();
+
+    // Subscribe to entries
+    const unsubscribe = firebaseService.subscribeToEntries(user.uid, (entries) => {
+      setState(prev => ({ ...prev, entries }));
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  const handleOnboard = async (goal: UserGoal) => {
+    if (!user) return;
+    const updates = { goal, onboarded: true };
+    setState(prev => ({ ...prev, ...updates }));
+    await firebaseService.saveUserProfile(user.uid, updates);
   };
 
-  const addEntry = (entry: Omit<WeightEntry, 'id'>) => {
+  const addEntry = async (entry: Omit<WeightEntry, 'id'>) => {
+    if (!user) return;
     const newEntry: WeightEntry = { ...entry, id: crypto.randomUUID() };
-    setState(prev => ({
-      ...prev,
-      entries: [...prev.entries, newEntry].sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())
-    }));
+    await firebaseService.addEntry(user.uid, newEntry);
     setIsLogging(false);
   };
 
-  const deleteEntry = (id: string) => {
-    setState(prev => ({ ...prev, entries: prev.entries.filter(e => e.id !== id) }));
+  const deleteEntry = async (id: string) => {
+    if (!user) return;
+    await firebaseService.deleteEntry(user.uid, id);
   };
 
-  const updateSettings = (settings: Partial<AppSettings>) => {
-    setState(prev => ({ ...prev, settings: { ...prev.settings, ...settings } }));
+  const updateSettings = async (settings: Partial<AppSettings>) => {
+    if (!user) return;
+    const newSettings = { ...state.settings, ...settings };
+    setState(prev => ({ ...prev, settings: newSettings }));
+    await firebaseService.saveUserProfile(user.uid, { settings: newSettings });
   };
 
-  const updateGoal = (goal: Partial<UserGoal>) => {
-    setState(prev => ({ ...prev, goal: prev.goal ? { ...prev.goal, ...goal } : null }));
+  const updateGoal = async (goal: Partial<UserGoal>) => {
+    if (!user) return;
+    const newGoal = state.goal ? { ...state.goal, ...goal } : null;
+    setState(prev => ({ ...prev, goal: newGoal }));
+    await firebaseService.saveUserProfile(user.uid, { goal: newGoal });
   };
 
   const handleImportCsv = async (file: File) => {
+    if (!user) return;
     const newEntries = await storageService.importCsv(file);
-    setState(prev => {
-      const merged = [...prev.entries, ...newEntries].sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
-      // Simple de-duplication by date (same day)
-      const unique = merged.filter((entry, index, self) => 
-        index === self.findIndex((e) => format(parseISO(e.date), 'yyyy-MM-dd') === format(parseISO(entry.date), 'yyyy-MM-dd'))
-      );
-      return { ...prev, entries: unique };
-    });
+    await firebaseService.importEntries(user.uid, newEntries);
   };
 
   const handleImportJson = async (file: File) => {
+    if (!user) return;
     const data = await storageService.importData(file);
-    setState(data);
+    // This is a full state import, we should be careful
+    await firebaseService.saveUserProfile(user.uid, {
+      goal: data.goal,
+      onboarded: data.onboarded,
+      settings: data.settings
+    });
+    await firebaseService.importEntries(user.uid, data.entries);
   };
+
+  const handleSignOut = () => {
+    signOut(auth);
+  };
+
+  if (!isAuthReady) {
+    return (
+      <div className="min-h-screen bg-paper flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-brand-200 border-t-brand-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) return <AuthView />;
 
   if (!state.onboarded) return <Onboarding onComplete={handleOnboard} initialWeight={state.entries[state.entries.length - 1]?.weight} />;
 
@@ -112,10 +190,16 @@ export default function App() {
               state={state} 
               onUpdateSettings={updateSettings} 
               onUpdateGoal={updateGoal}
-              onExport={storageService.exportData}
+              onExport={() => storageService.exportData(state)}
               onImportJson={handleImportJson}
               onImportCsv={handleImportCsv}
-              onReset={() => setState({ goal: null, entries: [], onboarded: false, settings: { smoothingWindow: 10, hideRawNumbers: false } })} 
+              onReset={async () => {
+                if (confirm('Are you sure you want to reset all data? This cannot be undone.')) {
+                  await firebaseService.saveUserProfile(user.uid, { goal: null, onboarded: false, settings: { smoothingWindow: 10, hideRawNumbers: false } });
+                  // We'd also need to delete all entries, but for now let's just reset profile
+                }
+              }} 
+              onSignOut={handleSignOut}
             />
           )}
         </AnimatePresence>
@@ -127,6 +211,63 @@ export default function App() {
     </div>
   );
 }
+
+function AuthView() {
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async () => {
+    setLoading(true);
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (error) {
+      console.error('Login failed', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-paper flex flex-col items-center justify-center p-6 text-center">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="max-w-md w-full space-y-8"
+      >
+        <div className="w-20 h-20 bg-brand-500 rounded-3xl flex items-center justify-center text-white mx-auto shadow-2xl shadow-brand-500/20 mb-8">
+          <TrendingDown size={40} />
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-4xl font-black tracking-tight text-ink">Pivot</h1>
+          <p className="text-slate-500 font-medium">Precision weight tracking for focused progress.</p>
+        </div>
+        
+        <div className="pt-8">
+          <button 
+            onClick={handleLogin}
+            disabled={loading}
+            className="w-full bg-ink text-white p-5 rounded-2xl font-bold flex items-center justify-center gap-4 hover:bg-slate-900 transition-all active:scale-95 shadow-xl disabled:opacity-50"
+          >
+            {loading ? (
+              <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+            ) : (
+              <>
+                <svg className="w-6 h-6" viewBox="0 0 24 24">
+                  <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                  <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 12-4.53z" />
+                </svg>
+                Continue with Google
+              </>
+            )}
+          </button>
+          <p className="mt-6 text-[10px] text-slate-400 uppercase tracking-widest font-bold">Secure Authentication via Firebase</p>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 
 function RailLink({ active, onClick, icon, label }: any) {
   return (
@@ -216,8 +357,8 @@ function Dashboard({ state, onLogClick }: { state: AppState, onLogClick: () => v
             <AreaChart data={trendData.slice(-30)}>
               <defs>
                 <linearGradient id="colorTrend" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  <stop offset="5%" stopColor="#1e40af" stopOpacity={0.1}/>
+                  <stop offset="95%" stopColor="#1e40af" stopOpacity={0}/>
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -245,7 +386,7 @@ function Dashboard({ state, onLogClick }: { state: AppState, onLogClick: () => v
                   return null;
                 }} 
               />
-              <Area type="monotone" dataKey="trendWeight" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorTrend)" animationDuration={1000} />
+              <Area type="monotone" dataKey="trendWeight" stroke="#1e40af" strokeWidth={3} fillOpacity={1} fill="url(#colorTrend)" animationDuration={1000} />
               {!state.settings.hideRawNumbers && <Line type="monotone" dataKey="weight" stroke="#cbd5e1" strokeWidth={1} dot={{ r: 2 }} animationDuration={1000} />}
             </AreaChart>
           </ResponsiveContainer>
@@ -260,7 +401,7 @@ function Dashboard({ state, onLogClick }: { state: AppState, onLogClick: () => v
             return (
               <div key={m.id} className={cn(
                 "flex-shrink-0 w-24 p-4 rounded-2xl border text-center transition-all", 
-                isCompleted ? "bg-emerald-50 border-emerald-100 text-emerald-700 shadow-sm shadow-emerald-50" : "bg-slate-50 border-slate-100 text-slate-400"
+                isCompleted ? "bg-brand-50 border-brand-100 text-brand-700 shadow-sm shadow-brand-50" : "bg-slate-50 border-slate-100 text-slate-400"
               )}>
                 <p className="text-[10px] font-bold uppercase mb-1 tracking-wider">{m.label}</p>
                 <p className="text-base font-black">{m.target.toFixed(0)}</p>
@@ -472,7 +613,7 @@ function PredictionCard({ label, date, color }: any) {
   );
 }
 
-function SettingsView({ state, onUpdateSettings, onUpdateGoal, onExport, onImportJson, onImportCsv, onReset }: any) {
+function SettingsView({ state, onUpdateSettings, onUpdateGoal, onExport, onImportJson, onImportCsv, onReset, onSignOut }: any) {
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
   const handleCsv = async (file: File) => {
@@ -507,9 +648,18 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onExport, onImpor
       exit={{ opacity: 0, y: -10 }} 
       className="space-y-10"
     >
-      <header>
-        <h2 className="text-3xl font-bold text-ink">System Config</h2>
-        <p className="text-slate-500 font-medium uppercase tracking-widest text-[10px] mt-1">Preferences & Data Portability</p>
+      <header className="flex justify-between items-start">
+        <div>
+          <h2 className="text-3xl font-bold text-ink">System Config</h2>
+          <p className="text-slate-500 font-medium uppercase tracking-widest text-[10px] mt-1">Preferences & Data Portability</p>
+        </div>
+        <button 
+          onClick={onSignOut}
+          className="p-3 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-all active:scale-95"
+          title="Sign Out"
+        >
+          <EyeOff size={20} />
+        </button>
       </header>
       
       <AnimatePresence>

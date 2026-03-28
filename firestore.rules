@@ -1,0 +1,121 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: /users/{userId}
+    // Document ID: {userId} (matches request.auth.uid)
+    // Fields:
+    //   - uid: string (required, immutable)
+    //   - email: string (required, email format)
+    //   - onboarded: boolean (required)
+    //   - goal: map (optional, contains targetWeight, startWeight, etc.)
+    //   - settings: map (required, contains smoothingWindow, hideRawNumbers)
+    //
+    // Collection: /users/{userId}/entries/{entryId}
+    // Document ID: {entryId} (random UUID)
+    // Fields:
+    //   - id: string (required, immutable)
+    //   - date: string (required, ISO 8601)
+    //   - weight: number (required, positive)
+    //   - note: string (optional, max 500 chars)
+    //   - tags: list (required, max 20 items)
+    //   - uid: string (required, immutable, matches userId)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "dtponthetrack@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'onboarded', 'settings']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email) &&
+             data.onboarded is bool &&
+             data.settings is map &&
+             data.settings.smoothingWindow is number &&
+             data.settings.smoothingWindow >= 3 &&
+             data.settings.smoothingWindow <= 30 &&
+             data.settings.hideRawNumbers is bool &&
+             (!('goal' in data) || (
+               data.goal is map &&
+               data.goal.targetWeight is number &&
+               data.goal.startWeight is number &&
+               isValidDateString(data.goal.startDate) &&
+               data.goal.unit in ['lbs', 'kg'] &&
+               data.goal.milestoneSize is number
+             ));
+    }
+
+    function isValidWeightEntry(data, userId) {
+      return data.keys().hasAll(['id', 'date', 'weight', 'uid', 'tags']) &&
+             data.id is string &&
+             isValidDateString(data.date) &&
+             data.weight is number && data.weight > 0 &&
+             data.uid == userId &&
+             data.tags is list && data.tags.size() <= 20 &&
+             (!('note' in data) || (data.note is string && data.note.size() <= 500));
+    }
+
+    // ===============================================================
+    // Match Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) &&
+                      request.resource.data.uid == resource.data.uid;
+                      
+      allow delete: if isAdmin();
+
+      match /entries/{entryId} {
+        allow read: if isOwner(userId) || isAdmin();
+        
+        allow create: if isOwner(userId) && isValidWeightEntry(request.resource.data, userId);
+        
+        allow update: if isOwner(userId) && isValidWeightEntry(request.resource.data, userId) &&
+                        request.resource.data.id == resource.data.id &&
+                        request.resource.data.uid == resource.data.uid;
+                        
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+    }
+    
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}
