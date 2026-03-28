@@ -10,6 +10,7 @@ service cloud.firestore {
     // Fields:
     //   - uid: string (required, immutable)
     //   - email: string (required, email format)
+    //   - name: string (optional, max 100 chars)
     //   - onboarded: boolean (required)
     //   - goal: map (optional, contains targetWeight, startWeight, etc.)
     //   - settings: map (required, contains smoothingWindow, hideRawNumbers)
@@ -60,6 +61,7 @@ service cloud.firestore {
       return data.keys().hasAll(['uid', 'email', 'onboarded', 'settings']) &&
              data.uid == request.auth.uid &&
              isValidEmail(data.email) &&
+             (!('name' in data) || (data.name is string && data.name.size() <= 100)) &&
              data.onboarded is bool &&
              data.settings is map &&
              data.settings.smoothingWindow is number &&
