@@ -706,6 +706,11 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
     }
 
     if (enabled) {
+      if (window.self !== window.top) {
+        alert("Push notifications cannot be enabled inside the preview iframe. Please open the app in a new tab (using the arrow icon in the top right) to enable reminders.");
+        return;
+      }
+
       try {
         const permission = await Notification.requestPermission();
         if (permission !== 'granted') {
@@ -714,11 +719,14 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
         }
 
         const registration = await navigator.serviceWorker.register('/sw.js');
+        const activeRegistration = await navigator.serviceWorker.ready;
+        
         const response = await fetch('/api/vapidPublicKey');
+        if (!response.ok) throw new Error('Failed to fetch VAPID key');
         const vapidPublicKey = await response.text();
         const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
         
-        const subscription = await registration.pushManager.subscribe({
+        const subscription = await activeRegistration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: convertedVapidKey
         });
@@ -737,8 +745,9 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
         setRemindersEnabled(true);
         onUpdateSettings({ ...state.settings, remindersEnabled: true, reminderTime });
         setStatus({ type: 'success', message: 'Reminders enabled!' });
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error enabling reminders:", error);
+        alert(`Failed to enable reminders: ${error.message || error}`);
         setStatus({ type: 'error', message: 'Failed to enable reminders.' });
       }
     } else {
