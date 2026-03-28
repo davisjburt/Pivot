@@ -727,11 +727,16 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
           return;
         }
 
-        const registration = await navigator.serviceWorker.register('/sw.js');
+        const registration = await navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
         const activeRegistration = await navigator.serviceWorker.ready;
         
-        const response = await fetch('/api/vapidPublicKey');
-        if (!response.ok) throw new Error(`Failed to fetch VAPID key: ${response.statusText}`);
+        const response = await fetch(`${import.meta.env.BASE_URL}api/vapidPublicKey`);
+        if (!response.ok) {
+          if (response.status === 404) {
+            throw new Error('Backend server not found. Push notifications require a Node.js backend and will not work on static hosts like GitHub Pages.');
+          }
+          throw new Error(`Failed to fetch VAPID key: ${response.statusText}`);
+        }
         const vapidPublicKey = (await response.text()).trim();
         
         if (!vapidPublicKey) {
@@ -751,7 +756,7 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
           applicationServerKey: convertedVapidKey
         });
 
-        const subResponse = await fetch('/api/subscribe', {
+        const subResponse = await fetch(`${import.meta.env.BASE_URL}api/subscribe`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -782,7 +787,7 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
           await subscription.unsubscribe();
         }
         
-        await fetch('/api/unsubscribe', {
+        await fetch(`${import.meta.env.BASE_URL}api/unsubscribe`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId: state.uid || 'anonymous' })
@@ -809,7 +814,7 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
 
   const handleTestNotification = async () => {
     try {
-      await fetch('/api/test-notification', {
+      await fetch(`${import.meta.env.BASE_URL}api/test-notification`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: state.uid || 'anonymous' })
