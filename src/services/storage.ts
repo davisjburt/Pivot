@@ -7,28 +7,85 @@ export const storageService = {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   },
 
-  loadData: (): AppState => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved) {
+  normalizeEntries: (rawEntries: any[]): WeightEntry[] => {
+    if (!Array.isArray(rawEntries)) return [];
+    return rawEntries.map(entry => {
+      // Handle various key names (Date/date, Weight/weight, Tags/tags)
+      const dateStr = entry.date || entry.Date || entry.time || entry.Time;
+      const weightVal = entry.weight || entry.Weight || entry.value || entry.Value;
+      const tagsRaw = entry.tags || entry.Tags || [];
+      
+      const weight = typeof weightVal === 'string' ? parseFloat(weightVal) : weightVal;
+      const tags = Array.isArray(tagsRaw) 
+        ? tagsRaw 
+        : (typeof tagsRaw === 'string' ? tagsRaw.split(';').map((t: string) => t.trim()).filter(Boolean) : []);
+
+      if (!dateStr || isNaN(weight)) return null;
+
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return null;
+
       return {
-        goal: null,
-        entries: [],
-        onboarded: false,
+        id: entry.id || crypto.randomUUID(),
+        date: date.toISOString(),
+        weight,
+        tags
+      };
+    }).filter((e): e is WeightEntry => e !== null)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  },
+
+  validateData: (data: any): AppState => {
+    const defaultState: AppState = {
+      goal: null,
+      entries: [],
+      onboarded: false,
+      settings: { smoothingWindow: 10, hideRawNumbers: false }
+    };
+
+    if (!data) return defaultState;
+
+    // Case 1: Input is an array of entries
+    if (Array.isArray(data)) {
+      const entries = storageService.normalizeEntries(data);
+      return {
+        ...defaultState,
+        entries,
+        onboarded: false // Force onboarding to set a goal
+      };
+    }
+
+    // Case 2: Input is an object (likely full AppState)
+    if (typeof data === 'object') {
+      const rawEntries = data.entries || data.WeightEntries || [];
+      const entries = storageService.normalizeEntries(rawEntries);
+      const goal = data.goal || null;
+
+      return {
+        goal,
+        entries,
+        onboarded: !!data.onboarded && goal !== null,
         settings: {
-          smoothingWindow: 10,
-          hideRawNumbers: false,
+          smoothingWindow: typeof data.settings?.smoothingWindow === 'number' ? data.settings.smoothingWindow : 10,
+          hideRawNumbers: !!data.settings?.hideRawNumbers,
         }
       };
     }
-    const data = JSON.parse(saved);
-    // Ensure settings exist for legacy data
-    if (!data.settings) {
-      data.settings = {
-        smoothingWindow: 10,
-        hideRawNumbers: false,
-      };
+
+    return defaultState;
+  },
+
+  loadData: (): AppState => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) {
+      return storageService.validateData({});
     }
-    return data;
+    try {
+      const data = JSON.parse(saved);
+      return storageService.validateData(data);
+    } catch (err) {
+      return storageService.validateData({});
+    }
   },
 
   exportData: () => {
@@ -47,9 +104,9 @@ export const storageService = {
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
-          const data = JSON.parse(e.target?.result as string);
-          storageService.saveData(data);
-          resolve(data);
+          const rawData = JSON.parse(e.target?.result as string);
+          const validatedData = storageService.validateData(rawData);
+          resolve(validatedData);
         } catch (err) {
           reject(new Error('Invalid file format'));
         }

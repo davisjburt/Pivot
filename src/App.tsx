@@ -71,7 +71,7 @@ export default function App() {
     setState(data);
   };
 
-  if (!state.onboarded) return <Onboarding onComplete={handleOnboard} />;
+  if (!state.onboarded) return <Onboarding onComplete={handleOnboard} initialWeight={state.entries[state.entries.length - 1]?.weight} />;
 
   return (
     <div className="min-h-screen pb-24 md:pb-0 md:pl-64">
@@ -560,12 +560,22 @@ function LogModal({ onClose, onSave, unit, lastWeight }: any) {
   );
 }
 
-function Onboarding({ onComplete }: any) {
+function Onboarding({ onComplete, initialWeight, initialUnit = 'lbs' }: any) {
   const [step, setStep] = useState(1);
-  const [unit, setUnit] = useState<'lbs' | 'kg'>('lbs');
-  const [currentWeight, setCurrentWeight] = useState('');
+  const [unit, setUnit] = useState<'lbs' | 'kg'>(initialUnit);
+  const [currentWeight, setCurrentWeight] = useState(initialWeight?.toString() || '');
   const [targetWeight, setTargetWeight] = useState('');
   const [milestoneSize, setMilestoneSize] = useState('5');
+
+  // Update currentWeight and skip to step 2 if initialWeight changes (e.g. after import)
+  useEffect(() => {
+    if (initialWeight) {
+      if (!currentWeight) {
+        setCurrentWeight(initialWeight.toString());
+      }
+      setStep(2);
+    }
+  }, [initialWeight]);
 
   return (
     <div className="min-h-screen bg-brand-500 flex items-center justify-center p-4 md:p-6">
