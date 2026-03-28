@@ -154,8 +154,10 @@ export default function App() {
 
   if (!isAuthReady) {
     return (
-      <div className="min-h-screen bg-paper flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-brand-200 border-t-brand-500 rounded-full animate-spin" />
+      <div className="fixed inset-0 bg-slate-100 flex justify-center overflow-hidden">
+        <div className="w-full max-w-md bg-paper h-full relative shadow-2xl flex items-center justify-center">
+          <div className="w-12 h-12 border-4 border-brand-200 border-t-brand-500 rounded-full animate-spin" />
+        </div>
       </div>
     );
   }
@@ -165,62 +167,47 @@ export default function App() {
   if (!state.onboarded) return <Onboarding onComplete={handleOnboard} initialWeight={state.entries[state.entries.length - 1]?.weight} />;
 
   return (
-    <div className="min-h-screen pb-24 md:pb-0 md:pl-20">
-      {/* Desktop Rail Navigation */}
-      <nav className="hidden md:flex flex-col fixed left-0 top-0 bottom-0 w-20 bg-ink border-r border-slate-800 p-4 z-50">
-        <div className="flex items-center justify-center mb-10">
-          <div className="w-10 h-10 bg-brand-500 rounded-lg flex items-center justify-center text-white shadow-lg shadow-brand-900/20">
-            <TrendingDown size={24} />
-          </div>
-        </div>
-        <div className="space-y-4 flex-1 flex flex-col items-center">
-          <RailLink active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<Target size={24} />} label="Pulse" />
-          <RailLink active={activeTab === 'history'} onClick={() => setActiveTab('history')} icon={<History size={24} />} label="Log" />
-          <RailLink active={activeTab === 'insights'} onClick={() => setActiveTab('insights')} icon={<Info size={24} />} label="Projection" />
-        </div>
-        <div className="pt-6 border-t border-slate-800 flex flex-col items-center">
-          <RailLink active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<SettingsIcon size={24} />} label="Config" />
-        </div>
-      </nav>
+    <div className="fixed inset-0 bg-slate-100 flex justify-center overflow-hidden">
+      <div className="w-full max-w-md bg-paper h-full relative shadow-2xl flex flex-col overflow-hidden">
+        <main className="flex-1 overflow-y-auto p-6 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-32 no-scrollbar">
+          <AnimatePresence mode="wait">
+            {activeTab === 'dashboard' && <Dashboard state={state} onLogClick={() => setIsLogging(true)} />}
+            {activeTab === 'history' && <HistoryView entries={state.entries} onDelete={deleteEntry} unit={state.goal?.unit || 'lbs'} />}
+            {activeTab === 'insights' && <InsightsView state={state} />}
+            {activeTab === 'settings' && (
+              <SettingsView 
+                state={state} 
+                onUpdateSettings={updateSettings} 
+                onUpdateGoal={updateGoal}
+                onUpdateProfile={updateProfile}
+                onExport={() => storageService.exportData(state)}
+                onImportJson={handleImportJson}
+                onImportCsv={handleImportCsv}
+                onReset={async () => {
+                  if (confirm('Are you sure you want to reset all data? This cannot be undone.')) {
+                    await firebaseService.saveUserProfile(user.uid, { goal: null, onboarded: false, settings: { smoothingWindow: 10, hideRawNumbers: false } });
+                    // We'd also need to delete all entries, but for now let's just reset profile
+                  }
+                }} 
+                onSignOut={handleSignOut}
+              />
+            )}
+          </AnimatePresence>
+        </main>
 
-      {/* Mobile Nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-line px-6 py-3 flex justify-between items-center z-50">
-        <MobileNavLink active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<Target size={24} />} />
-        <MobileNavLink active={activeTab === 'history'} onClick={() => setActiveTab('history')} icon={<History size={24} />} />
-        <button onClick={() => setIsLogging(true)} className="w-14 h-14 bg-brand-500 rounded-full flex items-center justify-center text-white shadow-lg -mt-10 border-4 border-paper"><Plus size={28} /></button>
-        <MobileNavLink active={activeTab === 'insights'} onClick={() => setActiveTab('insights')} icon={<Info size={24} />} />
-        <MobileNavLink active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<SettingsIcon size={24} />} />
-      </nav>
+        {/* Mobile Nav */}
+        <nav className="absolute bottom-0 left-0 right-0 bg-white border-t border-line px-6 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] flex justify-between items-center z-50">
+          <MobileNavLink active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<Target size={24} />} />
+          <MobileNavLink active={activeTab === 'history'} onClick={() => setActiveTab('history')} icon={<History size={24} />} />
+          <button onClick={() => setIsLogging(true)} className="w-14 h-14 bg-brand-500 rounded-full flex items-center justify-center text-white shadow-lg -mt-10 border-4 border-paper active:scale-95 transition-transform"><Plus size={28} /></button>
+          <MobileNavLink active={activeTab === 'insights'} onClick={() => setActiveTab('insights')} icon={<Info size={24} />} />
+          <MobileNavLink active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<SettingsIcon size={24} />} />
+        </nav>
 
-      <main className="max-w-5xl mx-auto p-6 md:p-12">
-        <AnimatePresence mode="wait">
-          {activeTab === 'dashboard' && <Dashboard state={state} onLogClick={() => setIsLogging(true)} />}
-          {activeTab === 'history' && <HistoryView entries={state.entries} onDelete={deleteEntry} unit={state.goal?.unit || 'lbs'} />}
-          {activeTab === 'insights' && <InsightsView state={state} />}
-          {activeTab === 'settings' && (
-            <SettingsView 
-              state={state} 
-              onUpdateSettings={updateSettings} 
-              onUpdateGoal={updateGoal}
-              onUpdateProfile={updateProfile}
-              onExport={() => storageService.exportData(state)}
-              onImportJson={handleImportJson}
-              onImportCsv={handleImportCsv}
-              onReset={async () => {
-                if (confirm('Are you sure you want to reset all data? This cannot be undone.')) {
-                  await firebaseService.saveUserProfile(user.uid, { goal: null, onboarded: false, settings: { smoothingWindow: 10, hideRawNumbers: false } });
-                  // We'd also need to delete all entries, but for now let's just reset profile
-                }
-              }} 
-              onSignOut={handleSignOut}
-            />
-          )}
+        <AnimatePresence>
+          {isLogging && <LogModal onClose={() => setIsLogging(false)} onSave={addEntry} unit={state.goal?.unit || 'lbs'} lastWeight={state.entries[state.entries.length - 1]?.weight} />}
         </AnimatePresence>
-      </main>
-
-      <AnimatePresence>
-        {isLogging && <LogModal onClose={() => setIsLogging(false)} onSave={addEntry} unit={state.goal?.unit || 'lbs'} lastWeight={state.entries[state.entries.length - 1]?.weight} />}
-      </AnimatePresence>
+      </div>
     </div>
   );
 }
@@ -240,12 +227,13 @@ function AuthView() {
   };
 
   return (
-    <div className="min-h-screen bg-paper flex flex-col items-center justify-center p-6 text-center">
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="max-w-md w-full space-y-8"
-      >
+    <div className="fixed inset-0 bg-slate-100 flex justify-center overflow-hidden">
+      <div className="w-full max-w-md bg-paper h-full relative shadow-2xl flex flex-col items-center justify-center p-6 text-center">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full space-y-8"
+        >
         <div className="w-20 h-20 bg-brand-500 rounded-3xl flex items-center justify-center text-white mx-auto shadow-2xl shadow-brand-500/20 mb-8">
           <TrendingDown size={40} />
         </div>
@@ -277,27 +265,11 @@ function AuthView() {
           <p className="mt-6 text-[10px] text-slate-400 uppercase tracking-widest font-bold">Secure Authentication via Firebase</p>
         </div>
       </motion.div>
+      </div>
     </div>
   );
 }
 
-
-function RailLink({ active, onClick, icon, label }: any) {
-  return (
-    <button 
-      onClick={onClick} 
-      className={cn(
-        "group relative flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all duration-200",
-        active ? "bg-brand-500 text-white shadow-lg shadow-brand-500/20" : "text-slate-400 hover:text-white hover:bg-slate-800"
-      )}
-    >
-      {icon}
-      <span className="absolute left-16 px-2 py-1 bg-ink text-white text-[10px] font-bold uppercase tracking-widest rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-slate-800">
-        {label}
-      </span>
-    </button>
-  );
-}
 
 function MobileNavLink({ active, onClick, icon }: any) {
   return (
@@ -333,26 +305,20 @@ function Dashboard({ state, onLogClick }: { state: AppState, onLogClick: () => v
       initial={{ opacity: 0, y: 20 }} 
       animate={{ opacity: 1, y: 0 }} 
       exit={{ opacity: 0, y: -20 }} 
-      className="space-y-6 md:space-y-8"
+      className="space-y-6"
     >
-      <header className="flex justify-between items-start md:items-end">
+      <header className="flex justify-between items-start">
         <div>
-          <p className="text-slate-500 font-medium text-sm md:text-base">
+          <p className="text-slate-500 font-medium text-sm">
             {state.name ? `Welcome back, ${state.name.split(' ')[0]}` : 'Welcome back'}
           </p>
-          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
+          <h2 className="text-2xl font-bold tracking-tight">
             Trend: <span className="text-brand-600">{latest?.trendWeight.toFixed(1)} {state.goal?.unit}</span>
           </h2>
         </div>
-        <button 
-          onClick={onLogClick} 
-          className="hidden md:flex items-center gap-2 bg-brand-500 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:bg-brand-600 transition-all active:scale-95"
-        >
-          <Plus size={20} /> Log Weight
-        </button>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+      <div className="grid grid-cols-2 gap-4">
         <StatCard label="Today's Weight" value={latest ? displayWeight(latest.weight) : '—'} unit={state.goal?.unit} subValue={latest ? `Trend: ${latest.trendWeight.toFixed(1)}` : ''} trend="neutral" />
         <StatCard label="Next Milestone" value={nextMilestone?.target.toFixed(1) || '—'} unit={state.goal?.unit} subValue={`${Math.abs((latest?.trendWeight || 0) - (nextMilestone?.target || 0)).toFixed(1)} to go`} trend="down" />
         <StatCard label="Milestones" value={completed.length} unit={`of ${milestones.length}`} subValue="Total completed" trend="neutral" />
@@ -365,9 +331,9 @@ function Dashboard({ state, onLogClick }: { state: AppState, onLogClick: () => v
         />
       </div>
 
-      <section className="bg-white p-4 md:p-6 rounded-3xl border border-slate-100 shadow-sm">
-        <h3 className="font-bold text-lg mb-4 md:mb-6">Trend vs Actual</h3>
-        <div className="h-[250px] md:h-[300px] w-full">
+      <section className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
+        <h3 className="font-bold text-lg mb-4">Trend vs Actual</h3>
+        <div className="h-[250px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={trendData.slice(-30)}>
               <defs>
@@ -467,38 +433,36 @@ function HistoryView({ entries, onDelete, unit }: { entries: WeightEntry[], onDe
       </header>
 
       <div className="bg-white border border-line rounded-2xl overflow-hidden shadow-sm">
-        <div className="hidden md:grid grid-cols-[1fr_1fr_1fr_auto] gap-4 px-6 py-3 bg-slate-50 border-b border-line text-[10px] font-bold uppercase tracking-widest text-slate-400">
-          <div>Date</div>
-          <div>Weight ({unit})</div>
-          <div>Tags</div>
-          <div className="text-right">Actions</div>
-        </div>
         <div className="divide-y divide-line">
           {sorted.length === 0 ? (
             <div className="p-12 text-center text-slate-400 font-medium">No entries recorded yet.</div>
           ) : (
             sorted.map((entry) => (
-              <div key={entry.id} className="grid grid-cols-[1fr_auto_auto] md:grid-cols-[1fr_1fr_1fr_auto] items-center gap-4 py-4 px-6 hover:bg-slate-50 transition-colors group">
-                <div className="text-sm font-semibold text-ink">
-                  {format(parseISO(entry.date), 'MMM d, yyyy')}
-                  <span className="md:hidden block text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+              <div key={entry.id} className="flex items-center justify-between py-4 px-6 hover:bg-slate-50 transition-colors group">
+                <div>
+                  <div className="text-sm font-semibold text-ink">
+                    {format(parseISO(entry.date), 'MMM d, yyyy')}
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
                     {format(parseISO(entry.date), 'h:mm a')}
-                  </span>
+                  </div>
+                  {entry.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {entry.tags.map(tag => (
+                        <span key={tag} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-bold uppercase tracking-wider">{tag}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="text-sm font-bold text-ink md:text-left text-right">
-                  {entry.weight.toFixed(1)} <span className="text-slate-400 font-normal">{unit}</span>
-                </div>
-                <div className="hidden md:flex flex-wrap gap-1.5">
-                  {entry.tags.length > 0 ? entry.tags.map(tag => (
-                    <span key={tag} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-bold uppercase tracking-wider">{tag}</span>
-                  )) : <span className="text-slate-300">—</span>}
-                </div>
-                <div className="flex justify-end">
+                <div className="flex items-center gap-4">
+                  <div className="text-lg font-bold text-ink text-right">
+                    {entry.weight.toFixed(1)} <span className="text-slate-400 font-normal text-sm">{unit}</span>
+                  </div>
                   <button 
                     onClick={() => onDelete(entry.id)} 
-                    className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                    className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                   >
-                    <Trash2 size={16} />
+                    <Trash2 size={18} />
                   </button>
                 </div>
               </div>
@@ -542,7 +506,7 @@ function InsightsView({ state }: { state: AppState }) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 gap-8">
         <div className="space-y-8">
           <div className="bg-white border border-line rounded-2xl p-8 shadow-sm">
             <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-6">Current Velocity</h3>
@@ -694,7 +658,7 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
         )}
       </AnimatePresence>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 gap-8">
         <div className="bg-white p-8 rounded-2xl border border-line shadow-sm space-y-8">
           <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Profile & Goals</h3>
           <div className="grid grid-cols-1 gap-6">
@@ -811,17 +775,17 @@ function LogModal({ onClose, onSave, unit, lastWeight }: any) {
   const [weight, setWeight] = useState(lastWeight?.toString() || '');
   const [tags, setTags] = useState<string[]>([]);
   return (
-    <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center p-0 md:p-4">
+    <div className="fixed inset-0 z-[100] flex items-end justify-center p-0">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
       <motion.div 
         initial={{ y: '100%' }} 
         animate={{ y: 0 }} 
         exit={{ y: '100%' }} 
         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        className="relative w-full max-w-lg bg-white rounded-t-[32px] md:rounded-[40px] p-6 md:p-10 shadow-2xl"
+        className="relative w-full max-w-md bg-white rounded-t-[32px] p-6 pb-12 shadow-2xl"
       >
-        <div className="w-12 h-1 bg-slate-200 rounded-full mx-auto mb-6 md:hidden" />
-        <div className="flex justify-between items-center mb-6 md:mb-8">
+        <div className="w-12 h-1 bg-slate-200 rounded-full mx-auto mb-6" />
+        <div className="flex justify-between items-center mb-6">
           <h3 className="text-2xl font-bold tracking-tight">Log Weight</h3>
           <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-all active:scale-90">
             <Plus size={24} className="rotate-45" />
@@ -837,7 +801,7 @@ function LogModal({ onClose, onSave, unit, lastWeight }: any) {
                 placeholder="0.0" 
                 value={weight} 
                 onChange={(e) => setWeight(e.target.value)} 
-                className="text-6xl md:text-7xl font-black text-brand-600 w-48 md:w-56 text-center outline-none bg-transparent" 
+                className="text-6xl font-black text-brand-600 w-48 text-center outline-none bg-transparent" 
               />
               <span className="text-2xl font-bold text-slate-300">{unit}</span>
             </div>
@@ -890,12 +854,13 @@ function Onboarding({ onComplete, initialWeight, initialUnit = 'lbs' }: any) {
   }, [initialWeight]);
 
   return (
-    <div className="min-h-screen bg-ink flex items-center justify-center p-6">
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }} 
-        animate={{ opacity: 1, y: 0 }} 
-        className="w-full max-w-md bg-white rounded-3xl p-10 md:p-12 shadow-2xl border border-line"
-      >
+    <div className="fixed inset-0 bg-slate-100 flex justify-center overflow-hidden">
+      <div className="w-full max-w-md bg-ink h-full relative shadow-2xl flex flex-col items-center justify-center p-6">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          className="w-full bg-white rounded-3xl p-10 shadow-2xl border border-line"
+        >
         <AnimatePresence mode="wait">
           {step === 1 ? (
             <motion.div key="s1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-10 text-center">
@@ -947,7 +912,8 @@ function Onboarding({ onComplete, initialWeight, initialUnit = 'lbs' }: any) {
             </motion.div>
           )}
         </AnimatePresence>
-      </motion.div>
+        </motion.div>
+      </div>
     </div>
   );
 }

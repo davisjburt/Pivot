@@ -22,8 +22,19 @@
 }
 
 @layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
   body {
     @apply bg-paper text-ink antialiased;
+    user-select: none;
+    -webkit-user-select: none;
+    overscroll-behavior-y: none;
+  }
+  input, textarea {
+    user-select: auto;
+    -webkit-user-select: auto;
   }
   
   h1, h2, h3, h4 {
