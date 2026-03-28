@@ -20,6 +20,7 @@ export interface WeightEntry {
 export interface AppSettings {
   smoothingWindow: number; // default 10
   hideRawNumbers: boolean;
+  darkMode: boolean;
 }
 
 export interface AppState {

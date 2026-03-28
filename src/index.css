@@ -13,15 +13,57 @@
   --color-brand-800: #111827;
   --color-brand-900: #030712;
 
-  --color-ink: #0f172a;
-  --color-paper: #f8fafc;
-  --color-line: #e2e8f0;
+  --color-ink: var(--theme-ink);
+  --color-paper: var(--theme-paper);
+  --color-line: var(--theme-line);
+  --color-surface: var(--theme-surface);
+  --color-surface-hover: var(--theme-surface-hover);
+  --color-surface-active: var(--theme-surface-active);
+  --color-inverted-bg: var(--theme-inverted-bg);
+  --color-inverted-text: var(--theme-inverted-text);
 
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-display: 'Space Grotesk', sans-serif;
 }
 
 @layer base {
+  :root {
+    --theme-ink: #0f172a;
+    --theme-paper: #f8fafc;
+    --theme-line: #e2e8f0;
+    --theme-line-strong: #e2e8f0;
+    --theme-surface: #ffffff;
+    --theme-surface-hover: #f8fafc;
+    --theme-surface-active: #f1f5f9;
+    --theme-text-muted: #94a3b8;
+    --theme-text-secondary: #64748b;
+    --theme-text-primary: #475569;
+    --theme-inverted-bg: #0f172a;
+    --theme-inverted-text: #ffffff;
+    --theme-red-50: #fef2f2;
+    --theme-red-600: #dc2626;
+    --theme-emerald-50: #ecfdf5;
+    --theme-emerald-600: #059669;
+  }
+  .dark {
+    --theme-ink: #f8fafc;
+    --theme-paper: #020617;
+    --theme-line: #1e293b;
+    --theme-line-strong: #334155;
+    --theme-surface: #0f172a;
+    --theme-surface-hover: #1e293b;
+    --theme-surface-active: #334155;
+    --theme-text-muted: #475569;
+    --theme-text-secondary: #64748b;
+    --theme-text-primary: #94a3b8;
+    --theme-inverted-bg: #f8fafc;
+    --theme-inverted-text: #0f172a;
+    --theme-red-50: #450a0a;
+    --theme-red-600: #fca5a5;
+    --theme-emerald-50: #022c22;
+    --theme-emerald-600: #6ee7b7;
+  }
+
   html {
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior-y: none;
@@ -52,5 +94,45 @@
 
 /* Custom Data Grid Styles */
 .data-grid-row {
-  @apply grid grid-cols-[1fr_auto_auto] md:grid-cols-[1fr_1fr_1fr_auto] items-center gap-4 py-3 px-4 border-b border-line hover:bg-white transition-colors;
+  @apply grid grid-cols-[1fr_auto_auto] md:grid-cols-[1fr_1fr_1fr_auto] items-center gap-4 py-3 px-4 border-b border-line hover:bg-slate-50 transition-colors;
+}
+
+@layer utilities {
+  .bg-white { background-color: var(--theme-surface); }
+  .hover\:bg-white:hover { background-color: var(--theme-surface); }
+  .focus\:bg-white:focus { background-color: var(--theme-surface); }
+  
+  .text-white { color: #ffffff; }
+  
+  .bg-slate-50 { background-color: var(--theme-surface-hover); }
+  .hover\:bg-slate-50:hover { background-color: var(--theme-surface-hover); }
+  
+  .bg-slate-100 { background-color: var(--theme-surface-active); }
+  .hover\:bg-slate-100:hover { background-color: var(--theme-surface-active); }
+  
+  .bg-slate-200 { background-color: var(--theme-line); }
+  .hover\:bg-slate-200:hover { background-color: var(--theme-line); }
+  
+  .bg-slate-800 { background-color: var(--theme-surface-active); }
+  .border-slate-800 { border-color: var(--theme-line-strong); }
+  
+  .bg-slate-900 { background-color: var(--theme-inverted-bg); color: var(--theme-inverted-text); }
+  .hover\:bg-slate-900:hover { background-color: var(--theme-inverted-bg); }
+  
+  .text-slate-300 { color: var(--theme-text-muted); }
+  .text-slate-400 { color: var(--theme-text-muted); }
+  .text-slate-500 { color: var(--theme-text-secondary); }
+  .text-slate-600 { color: var(--theme-text-primary); }
+  .text-slate-900 { color: var(--theme-ink); }
+  
+  .border-slate-100 { border-color: var(--theme-line); }
+  .border-slate-200 { border-color: var(--theme-line-strong); }
+
+  .bg-red-50 { background-color: var(--theme-red-50); }
+  .text-red-600 { color: var(--theme-red-600); }
+  .bg-emerald-50 { background-color: var(--theme-emerald-50); }
+  .text-emerald-600 { color: var(--theme-emerald-600); }
+
+  /* Keep toggle dots and specific white elements actually white */
+  .bg-\[\#ffffff\] { background-color: #ffffff !important; }
 }

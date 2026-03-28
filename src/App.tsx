@@ -30,7 +30,7 @@ export default function App() {
     goal: null,
     entries: [],
     onboarded: false,
-    settings: { smoothingWindow: 10, hideRawNumbers: false }
+    settings: { smoothingWindow: 10, hideRawNumbers: false, darkMode: false }
   });
   const [isLogging, setIsLogging] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'insights' | 'settings'>('dashboard');
@@ -49,7 +49,7 @@ export default function App() {
         goal: null,
         entries: [],
         onboarded: false,
-        settings: { smoothingWindow: 10, hideRawNumbers: false }
+        settings: { smoothingWindow: 10, hideRawNumbers: false, darkMode: false }
       });
       return;
     }
@@ -63,7 +63,7 @@ export default function App() {
           name: profile.name || user.displayName || '',
           goal: profile.goal || null,
           onboarded: !!profile.onboarded,
-          settings: profile.settings || { smoothingWindow: 10, hideRawNumbers: false }
+          settings: profile.settings || { smoothingWindow: 10, hideRawNumbers: false, darkMode: false }
         }));
       } else {
         // Create initial profile
@@ -72,7 +72,7 @@ export default function App() {
           email: user.email || '',
           name: user.displayName || '',
           onboarded: false,
-          settings: { smoothingWindow: 10, hideRawNumbers: false }
+          settings: { smoothingWindow: 10, hideRawNumbers: false, darkMode: false }
         });
         setState(prev => ({
           ...prev,
@@ -90,6 +90,14 @@ export default function App() {
 
     return () => unsubscribe();
   }, [user]);
+
+  useEffect(() => {
+    if (state.settings?.darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [state.settings?.darkMode]);
 
   const handleOnboard = async (goal: UserGoal) => {
     if (!user) return;
@@ -246,7 +254,7 @@ function AuthView() {
           <button 
             onClick={handleLogin}
             disabled={loading}
-            className="w-full bg-ink text-white p-5 rounded-2xl font-bold flex items-center justify-center gap-4 hover:bg-slate-900 transition-all active:scale-95 shadow-xl disabled:opacity-50"
+            className="w-full bg-slate-900 p-5 rounded-2xl font-bold flex items-center justify-center gap-4 hover:opacity-90 transition-all active:scale-95 shadow-xl disabled:opacity-50"
           >
             {loading ? (
               <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
@@ -613,7 +621,7 @@ function InsightsView({ state }: { state: AppState }) {
           </div>
         </div>
 
-        <div className="bg-ink text-white rounded-2xl p-10 shadow-2xl flex flex-col justify-between">
+        <div className="bg-slate-900 rounded-2xl p-10 shadow-2xl flex flex-col justify-between">
           <div>
             <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-10">Goal Projection</h3>
             <div className="space-y-10">
@@ -802,8 +810,26 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
                   )}
                 >
                   <div className={cn(
-                    "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
+                    "absolute top-1 w-4 h-4 bg-[#ffffff] rounded-full transition-all",
                     state.settings.hideRawNumbers ? "left-7" : "left-1"
+                  )} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold text-ink">Dark Mode</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Toggle app theme</p>
+                </div>
+                <button 
+                  onClick={() => onUpdateSettings({ darkMode: !state.settings.darkMode })}
+                  className={cn(
+                    "w-12 h-6 rounded-full transition-all relative",
+                    state.settings.darkMode ? "bg-brand-500" : "bg-slate-200"
+                  )}
+                >
+                  <div className={cn(
+                    "absolute top-1 w-4 h-4 bg-[#ffffff] rounded-full transition-all",
+                    state.settings.darkMode ? "left-7" : "left-1"
                   )} />
                 </button>
               </div>
@@ -813,7 +839,7 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
           <div className="bg-white p-8 rounded-2xl border border-line shadow-sm space-y-8">
             <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Data Management</h3>
             <div className="grid grid-cols-1 gap-3">
-              <button onClick={onExport} className="w-full p-4 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-ink transition-all flex items-center justify-center gap-2">
+              <button onClick={onExport} className="w-full p-4 bg-slate-900 rounded-xl font-bold text-sm hover:opacity-90 transition-all flex items-center justify-center gap-2">
                 <Download size={18} /> EXPORT JSON
               </button>
               <div className="grid grid-cols-2 gap-3">
@@ -840,6 +866,20 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
 function LogModal({ onClose, onSave, unit, lastWeight }: any) {
   const [weight, setWeight] = useState(lastWeight?.toString() || '');
   const [tags, setTags] = useState<string[]>([]);
+  const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+
+  const handleSave = () => {
+    const now = new Date();
+    const [year, month, day] = date.split('-').map(Number);
+    const entryDate = new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds());
+    
+    onSave({ 
+      date: entryDate.toISOString(), 
+      weight: parseFloat(weight), 
+      tags 
+    });
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-end justify-center p-0">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
@@ -858,6 +898,15 @@ function LogModal({ onClose, onSave, unit, lastWeight }: any) {
           </button>
         </div>
         <div className="space-y-8">
+          <div className="flex justify-center">
+            <input 
+              type="date" 
+              value={date}
+              max={format(new Date(), 'yyyy-MM-dd')}
+              onChange={(e) => setDate(e.target.value)}
+              className="bg-slate-100 text-slate-600 font-bold px-4 py-2 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
           <div className="text-center">
             <div className="flex items-baseline justify-center gap-2">
               <input 
@@ -890,7 +939,7 @@ function LogModal({ onClose, onSave, unit, lastWeight }: any) {
             </div>
           </div>
           <button 
-            onClick={() => onSave({ date: new Date().toISOString(), weight: parseFloat(weight), tags })} 
+            onClick={handleSave} 
             disabled={!weight} 
             className="w-full py-5 bg-brand-500 text-white rounded-2xl font-black text-lg shadow-xl hover:bg-brand-600 disabled:opacity-50 transition-all active:scale-[0.98]"
           >
@@ -921,7 +970,7 @@ function Onboarding({ onComplete, initialWeight, initialUnit = 'lbs' }: any) {
 
   return (
     <div className="fixed inset-0 bg-slate-100 flex justify-center overflow-hidden">
-      <div className="w-full max-w-md bg-ink h-full relative shadow-2xl flex flex-col items-center justify-center p-6">
+      <div className="w-full max-w-md bg-slate-900 h-full relative shadow-2xl flex flex-col items-center justify-center p-6">
         <motion.div 
           initial={{ opacity: 0, y: 20 }} 
           animate={{ opacity: 1, y: 0 }} 
@@ -938,8 +987,8 @@ function Onboarding({ onComplete, initialWeight, initialUnit = 'lbs' }: any) {
                 <p className="text-slate-400 font-medium uppercase tracking-widest text-[10px]">Precision Weight Management</p>
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setUnit('lbs')} className={cn("flex-1 py-4 rounded-xl font-bold transition-all", unit === 'lbs' ? "bg-ink text-white shadow-lg" : "bg-slate-100 text-slate-500 hover:bg-slate-200")}>lbs</button>
-                <button onClick={() => setUnit('kg')} className={cn("flex-1 py-4 rounded-xl font-bold transition-all", unit === 'kg' ? "bg-ink text-white shadow-lg" : "bg-slate-100 text-slate-500 hover:bg-slate-200")}>kg</button>
+                <button onClick={() => setUnit('lbs')} className={cn("flex-1 py-4 rounded-xl font-bold transition-all", unit === 'lbs' ? "bg-slate-900 shadow-lg" : "bg-slate-100 text-slate-500 hover:bg-slate-200")}>lbs</button>
+                <button onClick={() => setUnit('kg')} className={cn("flex-1 py-4 rounded-xl font-bold transition-all", unit === 'kg' ? "bg-slate-900 shadow-lg" : "bg-slate-100 text-slate-500 hover:bg-slate-200")}>kg</button>
               </div>
               <button onClick={() => setStep(2)} className="w-full py-5 bg-brand-500 text-white rounded-xl font-bold text-sm tracking-widest uppercase shadow-xl hover:bg-brand-600 transition-all active:scale-95">Get Started</button>
             </motion.div>
