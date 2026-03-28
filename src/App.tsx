@@ -50,6 +50,10 @@ export default function App() {
     setState(prev => ({ ...prev, settings: { ...prev.settings, ...settings } }));
   };
 
+  const updateGoal = (goal: Partial<UserGoal>) => {
+    setState(prev => ({ ...prev, goal: prev.goal ? { ...prev.goal, ...goal } : null }));
+  };
+
   const handleImportCsv = async (file: File) => {
     const newEntries = await storageService.importCsv(file);
     setState(prev => {
@@ -107,6 +111,7 @@ export default function App() {
             <SettingsView 
               state={state} 
               onUpdateSettings={updateSettings} 
+              onUpdateGoal={updateGoal}
               onExport={storageService.exportData}
               onImportJson={handleImportJson}
               onImportCsv={handleImportCsv}
@@ -157,6 +162,7 @@ function Dashboard({ state, onLogClick }: { state: AppState, onLogClick: () => v
   const milestones = useMemo(() => analyticsService.getMilestones(state.goal!), [state.goal]);
   const completed = useMemo(() => analyticsService.getCompletedMilestones(state.entries, state.goal!), [state.entries, state.goal]);
   const nextMilestone = milestones.find(m => !completed.find(c => c.id === m.id));
+  const predictions = useMemo(() => analyticsService.getPredictions(state.entries, state.goal!, state.settings.smoothingWindow), [state.entries, state.goal, state.settings.smoothingWindow]);
 
   const displayWeight = (w: number) => state.settings.hideRawNumbers ? '—' : w.toFixed(1);
 
@@ -182,12 +188,17 @@ function Dashboard({ state, onLogClick }: { state: AppState, onLogClick: () => v
         </button>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <StatCard label="Today's Weight" value={latest ? displayWeight(latest.weight) : '—'} unit={state.goal?.unit} subValue={latest ? `Trend: ${latest.trendWeight.toFixed(1)}` : ''} trend="neutral" />
         <StatCard label="Next Milestone" value={nextMilestone?.target.toFixed(1) || '—'} unit={state.goal?.unit} subValue={`${Math.abs((latest?.trendWeight || 0) - (nextMilestone?.target || 0)).toFixed(1)} to go`} trend="down" />
-        <div className="sm:col-span-2 md:col-span-1">
-          <StatCard label="Milestones" value={completed.length} unit={`of ${milestones.length}`} subValue="Total completed" trend="neutral" />
-        </div>
+        <StatCard label="Milestones" value={completed.length} unit={`of ${milestones.length}`} subValue="Total completed" trend="neutral" />
+        <StatCard 
+          label="Projected Goal" 
+          value={predictions ? format(predictions.likely, 'MMM d') : '—'} 
+          unit={predictions ? format(predictions.likely, 'yyyy') : ''} 
+          subValue={predictions ? "Based on 30-day trend" : "Log more data"} 
+          trend="neutral" 
+        />
       </div>
 
       <section className="bg-white p-4 md:p-6 rounded-3xl border border-slate-100 shadow-sm">
@@ -318,7 +329,7 @@ function HistoryView({ entries, onDelete, unit }: any) {
 }
 
 function InsightsView({ state }: { state: AppState }) {
-  const predictions = useMemo(() => analyticsService.getPredictions(state.entries, state.goal!), [state.entries, state.goal]);
+  const predictions = useMemo(() => analyticsService.getPredictions(state.entries, state.goal!, state.settings.smoothingWindow), [state.entries, state.goal, state.settings.smoothingWindow]);
   const spikes = useMemo(() => analyticsService.detectSpikes(state.entries, state.settings.smoothingWindow), [state.entries, state.settings.smoothingWindow]);
   const latestSpike = spikes[spikes.length - 1];
 
@@ -355,7 +366,7 @@ function PredictionCard({ label, date, color }: any) {
   );
 }
 
-function SettingsView({ state, onUpdateSettings, onExport, onImportJson, onImportCsv, onReset }: any) {
+function SettingsView({ state, onUpdateSettings, onUpdateGoal, onExport, onImportJson, onImportCsv, onReset }: any) {
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
   const handleCsv = async (file: File) => {
@@ -403,6 +414,43 @@ function SettingsView({ state, onUpdateSettings, onExport, onImportJson, onImpor
           </motion.div>
         )}
       </AnimatePresence>
+
+      <div className="bg-white p-6 rounded-3xl border border-slate-100 space-y-6">
+        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Goal Settings</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Start Weight ({state.goal?.unit})</label>
+            <input 
+              type="number" 
+              step="0.1"
+              value={state.goal?.startWeight || ''} 
+              onChange={(e) => onUpdateGoal({ startWeight: parseFloat(e.target.value) })}
+              className="w-full p-3 bg-slate-50 rounded-xl font-bold outline-none focus:ring-2 focus:ring-brand-500/20 transition-all"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Target Weight ({state.goal?.unit})</label>
+            <input 
+              type="number" 
+              step="0.1"
+              value={state.goal?.targetWeight || ''} 
+              onChange={(e) => onUpdateGoal({ targetWeight: parseFloat(e.target.value) })}
+              className="w-full p-3 bg-slate-50 rounded-xl font-bold outline-none focus:ring-2 focus:ring-brand-500/20 transition-all"
+            />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Milestone Size ({state.goal?.unit})</label>
+          <input 
+            type="number" 
+            step="1"
+            value={state.goal?.milestoneSize || ''} 
+            onChange={(e) => onUpdateGoal({ milestoneSize: parseFloat(e.target.value) })}
+            className="w-full p-3 bg-slate-50 rounded-xl font-bold outline-none focus:ring-2 focus:ring-brand-500/20 transition-all"
+          />
+          <p className="text-[10px] text-slate-400">Smaller milestones (e.g., 5 lbs) keep motivation high!</p>
+        </div>
+      </div>
 
       <div className="bg-white p-6 rounded-3xl border border-slate-100 space-y-6">
         <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Preferences</h3>

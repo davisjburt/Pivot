@@ -62,22 +62,33 @@ export const analyticsService = {
     return milestones.filter(m => isLosing ? latestTrend <= m.target : latestTrend >= m.target);
   },
 
-  getRateOfChange: (entries: WeightEntry[], days = 30) => {
+  getRateOfChange: (entries: WeightEntry[], days = 30, windowSize = 10) => {
     if (entries.length < 2) return 0;
-    const trendData = analyticsService.getTrendData(entries);
+    const trendData = analyticsService.getTrendData(entries, windowSize);
     const latest = trendData[trendData.length - 1];
-    const past = trendData.find(e => differenceInDays(parseISO(latest.date), parseISO(e.date)) >= days) 
-               || trendData[0];
+    
+    // Find the entry closest to 'days' ago by searching backwards
+    let past = trendData[0];
+    for (let i = trendData.length - 2; i >= 0; i--) {
+      const d = differenceInDays(parseISO(latest.date), parseISO(trendData[i].date));
+      if (d >= days) {
+        past = trendData[i];
+        break;
+      }
+    }
     
     const diffDays = Math.max(1, differenceInDays(parseISO(latest.date), parseISO(past.date)));
     return (latest.trendWeight - past.trendWeight) / diffDays; // per day
   },
 
-  getPredictions: (entries: WeightEntry[], goal: UserGoal) => {
+  getPredictions: (entries: WeightEntry[], goal: UserGoal, windowSize = 10) => {
     if (entries.length < 7 || !goal) return null;
     
-    const ratePerDay = analyticsService.getRateOfChange(entries, 30);
-    const currentTrend = analyticsService.getTrendData(entries).slice(-1)[0].trendWeight;
+    const trendData = analyticsService.getTrendData(entries, windowSize);
+    const latest = trendData[trendData.length - 1];
+    const ratePerDay = analyticsService.getRateOfChange(entries, 30, windowSize);
+    
+    const currentTrend = latest.trendWeight;
     const remaining = Math.abs(currentTrend - goal.targetWeight);
     
     // Check if moving in wrong direction
@@ -85,11 +96,12 @@ export const analyticsService = {
     if ((isLosing && ratePerDay >= 0) || (!isLosing && ratePerDay <= 0)) return null;
 
     const absRate = Math.abs(ratePerDay);
+    const latestDate = parseISO(latest.date);
     
     return {
-      likely: addDays(new Date(), Math.round(remaining / absRate)),
-      optimistic: addDays(new Date(), Math.round(remaining / (absRate * 1.2))),
-      pessimistic: addDays(new Date(), Math.round(remaining / (absRate * 0.8)))
+      likely: addDays(latestDate, Math.round(remaining / absRate)),
+      optimistic: addDays(latestDate, Math.round(remaining / (absRate * 1.15))),
+      pessimistic: addDays(latestDate, Math.round(remaining / (absRate * 0.85)))
     };
   },
 
