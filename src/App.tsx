@@ -1098,18 +1098,11 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
 
         const registration = await navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
         const activeRegistration = await navigator.serviceWorker.ready;
-        
-        const response = await fetch(`${import.meta.env.BASE_URL}api/vapidPublicKey`);
-        if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error('Backend server not found. Push notifications require a Node.js backend and will not work on static hosts like GitHub Pages.');
-          }
-          throw new Error(`Failed to fetch VAPID key: ${response.statusText}`);
-        }
-        const vapidPublicKey = (await response.text()).trim();
+
+        const vapidPublicKey = (import.meta as any).env?.VITE_VAPID_PUBLIC_KEY?.trim();
         
         if (!vapidPublicKey) {
-          throw new Error('VAPID key is empty');
+          throw new Error('Missing VITE_VAPID_PUBLIC_KEY. Add it to your build environment for static hosting.');
         }
 
         const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
@@ -1125,24 +1118,16 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
           applicationServerKey: convertedVapidKey
         });
 
-        const subResponse = await fetch(`${import.meta.env.BASE_URL}api/subscribe`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            subscription,
-            userId: state.uid || 'anonymous',
-            time: reminderTime,
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-          })
+        await firebaseService.saveReminderSubscription(state.uid || 'anonymous', {
+          subscription: subscription.toJSON(),
+          time: reminderTime,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          remindersEnabled: true
         });
-
-        if (!subResponse.ok) {
-          throw new Error('Failed to save subscription on server');
-        }
 
         setRemindersEnabled(true);
         onUpdateSettings({ ...state.settings, remindersEnabled: true, reminderTime });
-        setStatus({ type: 'success', message: 'Reminders enabled!' });
+        setStatus({ type: 'success', message: 'Reminders enabled! Sent via GitHub Actions scheduler.' });
       } catch (error: any) {
         console.error("Error enabling reminders:", error);
         alert(`Failed to enable reminders: ${error.message || error}`);
@@ -1156,11 +1141,7 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
           await subscription.unsubscribe();
         }
         
-        await fetch(`${import.meta.env.BASE_URL}api/unsubscribe`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: state.uid || 'anonymous' })
-        });
+        await firebaseService.deleteReminderSubscription(state.uid || 'anonymous');
 
         setRemindersEnabled(false);
         onUpdateSettings({ ...state.settings, remindersEnabled: false });
@@ -1183,10 +1164,9 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
 
   const handleTestNotification = async () => {
     try {
-      await fetch(`${import.meta.env.BASE_URL}api/test-notification`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: state.uid || 'anonymous' })
+      setStatus({
+        type: 'success',
+        message: 'Use the GitHub Actions workflow dispatch to send a test reminder.'
       });
     } catch (error) {
       console.error("Error sending test notification:", error);

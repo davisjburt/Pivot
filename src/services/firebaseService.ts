@@ -83,5 +83,33 @@ export const firebaseService = {
     // or use a Promise.all for better performance if the list isn't huge
     const promises = entries.map(entry => firebaseService.addEntry(userId, entry));
     await Promise.all(promises);
+  },
+
+  // Reminder Subscriptions (static-host friendly storage in Firestore)
+  saveReminderSubscription: async (
+    userId: string,
+    payload: { subscription: PushSubscriptionJSON; time: string; timezone: string; remindersEnabled: boolean }
+  ) => {
+    const path = `reminderSubscriptions/${userId}`;
+    try {
+      const docRef = doc(db, path);
+      await setDoc(docRef, {
+        userId,
+        ...payload,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, path);
+    }
+  },
+
+  deleteReminderSubscription: async (userId: string) => {
+    const path = `reminderSubscriptions/${userId}`;
+    try {
+      const docRef = doc(db, path);
+      await deleteDoc(docRef);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, path);
+    }
   }
 };

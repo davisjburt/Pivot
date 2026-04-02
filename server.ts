@@ -28,7 +28,14 @@ webpush.setVapidDetails(
 
 // --- Subscriptions Storage ---
 const SUBS_FILE = path.join(process.cwd(), 'subscriptions.json');
-let subscriptions: any[] = [];
+type StoredSubscription = {
+  subscription: any;
+  userId: string;
+  time: string;
+  timezone: string;
+  lastSentLocalDate?: string;
+};
+let subscriptions: StoredSubscription[] = [];
 
 if (fs.existsSync(SUBS_FILE)) {
   try {
@@ -40,6 +47,58 @@ if (fs.existsSync(SUBS_FILE)) {
 
 function saveSubscriptions() {
   fs.writeFileSync(SUBS_FILE, JSON.stringify(subscriptions));
+}
+
+function shouldSendReminder(sub: StoredSubscription, now: Date) {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: sub.timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+  const parts = formatter.formatToParts(now);
+  const get = (type: string) => parts.find(p => p.type === type)?.value ?? '';
+  const localDate = `${get('year')}-${get('month')}-${get('day')}`;
+  const localTime = `${get('hour')}:${get('minute')}`;
+
+  const [targetHour, targetMinute] = sub.time.split(':').map(Number);
+  const [currentHour, currentMinute] = localTime.split(':').map(Number);
+  const currentMinutes = currentHour * 60 + currentMinute;
+  const targetMinutes = targetHour * 60 + targetMinute;
+
+  // GitHub Actions runs every 5 minutes, so allow a 5-minute window.
+  const inWindow = currentMinutes >= targetMinutes && currentMinutes < targetMinutes + 5;
+  const alreadySentToday = sub.lastSentLocalDate === localDate;
+  return { shouldSend: inWindow && !alreadySentToday, localDate };
+}
+
+async function dispatchScheduledReminders(now: Date) {
+  let changed = false;
+  for (const sub of subscriptions) {
+    try {
+      const { shouldSend, localDate } = shouldSendReminder(sub, now);
+      if (!shouldSend) continue;
+
+      const payload = JSON.stringify({
+        title: 'Time to log your weight!',
+        body: 'Keep your streak going. Tap here to log your weight for today.',
+      });
+
+      await webpush.sendNotification(sub.subscription, payload);
+      sub.lastSentLocalDate = localDate;
+      changed = true;
+    } catch (error: any) {
+      console.error('Error sending scheduled notification:', error);
+      if (error?.statusCode === 410 || error?.statusCode === 404) {
+        subscriptions = subscriptions.filter(s => s.userId !== sub.userId);
+        changed = true;
+      }
+    }
+  }
+  if (changed) saveSubscriptions();
 }
 
 // --- API Routes ---
@@ -85,41 +144,15 @@ app.post('/api/test-notification', (req, res) => {
   }
 });
 
-// --- Cron Job (Check every minute) ---
-setInterval(() => {
-  const now = new Date();
-  
-  subscriptions.forEach(sub => {
-    try {
-      // Get current time in user's timezone
-      const userTime = new Intl.DateTimeFormat('en-US', {
-        timeZone: sub.timezone,
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      }).format(now);
-      
-      // userTime format is "HH:MM"
-      if (userTime === sub.time) {
-        const payload = JSON.stringify({
-          title: 'Time to log your weight!',
-          body: 'Keep your streak going. Tap here to log your weight for today.',
-        });
-        
-        webpush.sendNotification(sub.subscription, payload).catch(error => {
-          console.error('Error sending notification:', error);
-          if (error.statusCode === 410 || error.statusCode === 404) {
-            // Subscription has expired or is no longer valid
-            subscriptions = subscriptions.filter(s => s.userId !== sub.userId);
-            saveSubscriptions();
-          }
-        });
-      }
-    } catch (e) {
-      console.error('Error processing subscription:', e);
-    }
-  });
-}, 60000); // Check every minute
+app.post('/api/send-reminders', async (req, res) => {
+  const token = req.header('x-reminder-token');
+  if (!process.env.GITHUB_ACTIONS_REMINDER_TOKEN || token !== process.env.GITHUB_ACTIONS_REMINDER_TOKEN) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  await dispatchScheduledReminders(new Date());
+  res.status(200).json({ success: true, processed: subscriptions.length });
+});
 
 // --- Vite Middleware ---
 async function startServer() {
