@@ -1055,6 +1055,7 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
   const [remindersEnabled, setRemindersEnabled] = useState(state.settings.remindersEnabled || false);
   const [reminderTime, setReminderTime] = useState(state.settings.reminderTime || '08:00');
   const [pushSupported, setPushSupported] = useState('serviceWorker' in navigator && 'PushManager' in window);
+  const vapidConfigured = Boolean((import.meta as any).env?.VITE_VAPID_PUBLIC_KEY);
 
   // Helper function for VAPID key
   const urlBase64ToUint8Array = (base64String: string) => {
@@ -1069,6 +1070,11 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
   };
 
   const handleToggleReminders = async (enabled: boolean) => {
+    if (!vapidConfigured) {
+      alert("Reminders are not configured for this deployment yet. Missing VITE_VAPID_PUBLIC_KEY in build environment.");
+      return;
+    }
+
     if (!pushSupported) {
       alert("Push notifications are not supported on this device/browser. On iOS, you must add this app to your Home Screen first.");
       return;
@@ -1353,8 +1359,9 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
                 </div>
                 <button 
                   onClick={() => handleToggleReminders(!remindersEnabled)}
+                  disabled={!vapidConfigured}
                   className={cn(
-                    "w-12 h-6 rounded-full transition-all relative",
+                    "w-12 h-6 rounded-full transition-all relative disabled:opacity-40 disabled:cursor-not-allowed",
                     remindersEnabled ? "bg-brand-500" : "bg-slate-200"
                   )}
                 >
@@ -1398,6 +1405,11 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
               {!pushSupported && (
                 <p className="text-xs text-amber-600 bg-amber-50 p-3 rounded-xl border border-amber-100">
                   Push notifications are not supported in this browser. If you are on iOS, tap "Share" and "Add to Home Screen" to enable them.
+                </p>
+              )}
+              {!vapidConfigured && (
+                <p className="text-xs text-amber-600 bg-amber-50 p-3 rounded-xl border border-amber-100">
+                  Reminders are not configured for this deployment. Add the <span className="font-bold">VAPID_PUBLIC_KEY</span> GitHub secret so the build can set <span className="font-bold">VITE_VAPID_PUBLIC_KEY</span>.
                 </p>
               )}
             </div>
