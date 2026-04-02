@@ -13,8 +13,9 @@ import {
 } from 'lucide-react';
 import { format, parseISO, addDays, differenceInDays, startOfWeek, eachDayOfInterval } from 'date-fns';
 import { 
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Line, LineChart, ReferenceLine, Brush
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Line
 } from 'recharts';
+import ReactECharts from 'echarts-for-react';
 
 import { AppState, WeightEntry, UserGoal, DEFAULT_TAGS, AppSettings } from './types';
 import { storageService } from './services/storage';
@@ -652,7 +653,6 @@ function HistoryView({ entries, onDelete, unit }: { entries: WeightEntry[], onDe
 
 function InsightsView({ state }: { state: AppState }) {
   const [isProjectionFullscreen, setIsProjectionFullscreen] = useState(false);
-  const [projectionRange, setProjectionRange] = useState<{ startIndex: number; endIndex: number } | null>(null);
   const ratePerDay = useMemo(
     () => analyticsService.getRateOfChange(state.entries, 30, state.settings.smoothingWindow),
     [state.entries, state.settings.smoothingWindow]
@@ -684,7 +684,23 @@ function InsightsView({ state }: { state: AppState }) {
       trendByDay.set(format(parseISO(entry.date), 'yyyy-MM-dd'), entry.trendWeight);
     });
 
-    const firstActualDate = parseISO(sortedEntries[0].date);
+    // Start the chart at the first period of consistent logging
+    // (>= 3 entries within a rolling 14-day window).
+    let consistentStartIdx = 0;
+    for (let i = 0; i < sortedEntries.length; i++) {
+      const windowStart = parseISO(sortedEntries[i].date);
+      let countInWindow = 1;
+      for (let j = i + 1; j < sortedEntries.length; j++) {
+        const diff = differenceInDays(parseISO(sortedEntries[j].date), windowStart);
+        if (diff > 14) break;
+        countInWindow++;
+      }
+      if (countInWindow >= 3) {
+        consistentStartIdx = i;
+        break;
+      }
+    }
+    const firstActualDate = parseISO(sortedEntries[consistentStartIdx].date);
     const latestTrendPoint = trendData[trendData.length - 1];
     const latestDate = parseISO(latestTrendPoint.date);
     const goalDate = predictions?.likely ?? addDays(latestDate, 90);
@@ -797,30 +813,88 @@ function InsightsView({ state }: { state: AppState }) {
     values.push(state.goal.targetWeight, state.goal.startWeight);
     const min = Math.min(...values);
     const max = Math.max(...values);
-    const pad = Math.max(0.2, (max - min) * 0.035);
+    // Keep perspective realistic: wider vertical scale prevents exaggerated slopes.
+    const pad = Math.max(2, (max - min) * 0.3);
     return [min - pad, max + pad] as const;
   }, [projectionRows, state.goal]);
-  const projectionMinWidth = Math.max(960, projectionRows.length * 12);
+  const projectionMinWidth = Math.max(920, projectionRows.length * 8);
+  const projectionChartOption = useMemo(() => {
+    const dates = projectionRows.map(r => format(r.date, 'MMM d'));
+    const actual = projectionRows.map(r => r.actual);
+    const actualGapBridge = projectionRows.map(() => null as number | null);
+    const actualIndexes = actual
+      .map((v, i) => (v !== null ? i : -1))
+      .filter(i => i >= 0);
+    for (let k = 0; k < actualIndexes.length - 1; k++) {
+      const start = actualIndexes[k];
+      const end = actualIndexes[k + 1];
+      if (end - start <= 1) continue;
+      const startVal = actual[start] as number;
+      const endVal = actual[end] as number;
+      for (let i = start; i <= end; i++) {
+        const t = (i - start) / (end - start);
+        actualGapBridge[i] = startVal + ((endVal - startVal) * t);
+      }
+    }
+    const trend = projectionRows.map(r => r.trend);
+    const likely = projectionRows.map(r => r.projectedLikely);
+    const optimistic = projectionRows.map(r => r.projectedOptimistic);
+    const conservative = projectionRows.map(r => r.projectedConservative);
+    const latestActualIndex = projectionRows.findLastIndex(r => r.phase === 'Actual');
 
-  useEffect(() => {
-    if (projectionRows.length === 0) return;
-    const endIndex = projectionRows.length - 1;
-    const startIndex = Math.max(0, endIndex - 120);
-    setProjectionRange({ startIndex, endIndex });
-  }, [projectionRows.length]);
-
-  const zoomProjection = (factor: number) => {
-    if (!projectionRange) return;
-    const total = projectionRows.length;
-    const currentWindow = Math.max(10, projectionRange.endIndex - projectionRange.startIndex + 1);
-    const nextWindow = Math.min(total, Math.max(10, Math.round(currentWindow * factor)));
-    const center = Math.round((projectionRange.startIndex + projectionRange.endIndex) / 2);
-    const half = Math.floor(nextWindow / 2);
-    let startIndex = Math.max(0, center - half);
-    let endIndex = Math.min(total - 1, startIndex + nextWindow - 1);
-    startIndex = Math.max(0, endIndex - nextWindow + 1);
-    setProjectionRange({ startIndex, endIndex });
-  };
+    return {
+      animation: true,
+      grid: { left: 44, right: 22, top: 28, bottom: 72 },
+      tooltip: { trigger: 'axis' },
+      legend: {
+        top: 0,
+        textStyle: { color: '#64748b', fontSize: 11 },
+        data: ['Actual', 'Gap Bridge', 'Trend', 'Likely', 'Optimistic', 'Conservative']
+      },
+      xAxis: {
+        type: 'category',
+        data: dates,
+        axisLabel: { color: '#94a3b8', fontSize: 10 },
+        axisLine: { lineStyle: { color: '#e2e8f0' } }
+      },
+      yAxis: {
+        type: 'value',
+        min: projectionYDomain[0],
+        max: projectionYDomain[1],
+        axisLabel: { color: '#94a3b8', fontSize: 10 },
+        splitLine: { lineStyle: { color: '#f1f5f9' } }
+      },
+      dataZoom: [
+        { type: 'inside', xAxisIndex: 0, filterMode: 'none' },
+        { type: 'slider', xAxisIndex: 0, height: 20, bottom: 20, borderColor: '#e2e8f0' },
+        { type: 'inside', yAxisIndex: 0, filterMode: 'none' }
+      ],
+      series: [
+        { name: 'Actual', type: 'line', data: actual, showSymbol: true, symbolSize: 4, smooth: 0.25, lineStyle: { color: '#94a3b8', width: 2 } },
+        {
+          name: 'Gap Bridge',
+          type: 'line',
+          data: actualGapBridge,
+          showSymbol: false,
+          smooth: 0.45,
+          lineStyle: { color: '#8b5cf6', width: 2, type: 'dashed', opacity: 0.9 }
+        },
+        { name: 'Trend', type: 'line', data: trend, showSymbol: false, smooth: 0.3, lineStyle: { color: '#1e40af', width: 3 } },
+        { name: 'Likely', type: 'line', data: likely, showSymbol: false, smooth: 0.3, lineStyle: { color: '#3b82f6', width: 2.5, type: 'dashed' } },
+        { name: 'Optimistic', type: 'line', data: optimistic, showSymbol: false, smooth: 0.3, lineStyle: { color: '#10b981', width: 2, type: 'dashed' } },
+        { name: 'Conservative', type: 'line', data: conservative, showSymbol: false, smooth: 0.3, lineStyle: { color: '#f59e0b', width: 2, type: 'dashed' } }
+      ],
+      markLine: {
+        symbol: 'none',
+        lineStyle: { type: 'dashed', color: '#1e3a8a', width: 1.5 },
+        data: [{ yAxis: state.goal?.targetWeight, name: 'Goal' }]
+      },
+      markArea: latestActualIndex >= 0 ? {
+        itemStyle: { color: 'rgba(30, 64, 175, 0.05)' },
+        data: [[{ xAxis: latestActualIndex + 1 }, { xAxis: projectionRows.length - 1 }]]
+      } : undefined
+    };
+  }, [projectionRows, projectionYDomain, state.goal?.targetWeight]);
 
   return (
     <motion.div 
@@ -935,94 +1009,8 @@ function InsightsView({ state }: { state: AppState }) {
             </button>
           </div>
           <div className="overflow-x-auto rounded-xl border border-line">
-            <div className="min-w-[960px] h-[360px] p-2">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={projectionRows}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis
-                    dataKey="date"
-                    tickFormatter={(d) => format(d, 'MMM d')}
-                    minTickGap={32}
-                    tick={{ fill: '#94a3b8', fontSize: 10 }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    domain={projectionYDomain}
-                    tick={{ fill: '#94a3b8', fontSize: 10 }}
-                    axisLine={false}
-                    tickLine={false}
-                    width={42}
-                  />
-                  <Tooltip
-                    content={({ active, payload, label }) => {
-                      if (!active || !payload || payload.length === 0) return null;
-                      const row = payload[0]?.payload;
-                      return (
-                        <div className="bg-white p-3 rounded-xl shadow-xl border border-slate-100 text-xs">
-                          <p className="font-bold text-slate-600 mb-1">{format(label, 'MMMM d, yyyy')}</p>
-                          <p className="text-slate-700">Actual: {row.actual !== null ? row.actual.toFixed(1) : '—'} {state.goal?.unit}</p>
-                          <p className="text-brand-600">Trend: {row.trend !== null ? row.trend.toFixed(1) : '—'} {state.goal?.unit}</p>
-                          <p className="text-slate-500">Likely: {row.projectedLikely !== null ? row.projectedLikely.toFixed(1) : '—'} {state.goal?.unit}</p>
-                          <p className="text-emerald-600">Optimistic: {row.projectedOptimistic !== null ? row.projectedOptimistic.toFixed(1) : '—'} {state.goal?.unit}</p>
-                          <p className="text-amber-600">Conservative: {row.projectedConservative !== null ? row.projectedConservative.toFixed(1) : '—'} {state.goal?.unit}</p>
-                          <p className="text-slate-500 mt-1">{row.phase}</p>
-                        </div>
-                      );
-                    }}
-                  />
-                  <ReferenceLine y={state.goal?.targetWeight} stroke="#1e3a8a" strokeDasharray="4 4" />
-                  <ReferenceLine x={trendData.length > 0 ? parseISO(trendData[trendData.length - 1].date) : undefined} stroke="#64748b" strokeDasharray="3 3" />
-                  <Line
-                    type="monotone"
-                    dataKey="actual"
-                    stroke="#94a3b8"
-                    strokeWidth={2}
-                    dot={{ r: 2 }}
-                    connectNulls={false}
-                    name="Actual"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="trend"
-                    stroke="#1e40af"
-                    strokeWidth={3}
-                    dot={{ r: 0 }}
-                    connectNulls={false}
-                    name="Trend"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="projectedLikely"
-                    stroke="#3b82f6"
-                    strokeWidth={2.5}
-                    strokeDasharray="5 4"
-                    dot={{ r: 0 }}
-                    connectNulls={false}
-                    name="Likely Projection"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="projectedOptimistic"
-                    stroke="#10b981"
-                    strokeWidth={1.8}
-                    strokeDasharray="4 4"
-                    dot={{ r: 0 }}
-                    connectNulls={false}
-                    name="Optimistic"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="projectedConservative"
-                    stroke="#f59e0b"
-                    strokeWidth={1.8}
-                    strokeDasharray="4 4"
-                    dot={{ r: 0 }}
-                    connectNulls={false}
-                    name="Conservative"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+            <div style={{ minWidth: `${projectionMinWidth}px` }}>
+              <ReactECharts option={projectionChartOption} style={{ width: '100%', height: 360 }} />
             </div>
           </div>
         </section>
@@ -1039,71 +1027,11 @@ function InsightsView({ state }: { state: AppState }) {
                 Back
               </button>
               <h3 className="text-sm md:text-base font-bold text-ink">Projection Explorer</h3>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => zoomProjection(1.5)}
-                  className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-bold uppercase tracking-widest text-slate-600"
-                >
-                  Zoom Out
-                </button>
-                <button
-                  onClick={() => zoomProjection(0.7)}
-                  className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-bold uppercase tracking-widest text-slate-600"
-                >
-                  Zoom In
-                </button>
-              </div>
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Pinch/scroll to zoom and pan</p>
             </div>
             <div className="flex-1 overflow-x-auto p-4">
-              <div style={{ minWidth: `${projectionMinWidth}px` }} className="h-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={projectionRows}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={(d) => format(d, 'MMM d')}
-                      minTickGap={24}
-                      tick={{ fill: '#94a3b8', fontSize: 10 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis domain={projectionYDomain} tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} width={50} />
-                    <Tooltip
-                      content={({ active, payload, label }) => {
-                        if (!active || !payload || payload.length === 0) return null;
-                        const row = payload[0]?.payload;
-                        return (
-                          <div className="bg-white p-3 rounded-xl shadow-xl border border-slate-100 text-xs">
-                            <p className="font-bold text-slate-600 mb-1">{format(label, 'MMMM d, yyyy')}</p>
-                            <p className="text-slate-700">Actual: {row.actual !== null ? row.actual.toFixed(1) : '—'} {state.goal?.unit}</p>
-                            <p className="text-brand-600">Trend: {row.trend !== null ? row.trend.toFixed(1) : '—'} {state.goal?.unit}</p>
-                            <p className="text-slate-500">Likely: {row.projectedLikely !== null ? row.projectedLikely.toFixed(1) : '—'} {state.goal?.unit}</p>
-                            <p className="text-emerald-600">Optimistic: {row.projectedOptimistic !== null ? row.projectedOptimistic.toFixed(1) : '—'} {state.goal?.unit}</p>
-                            <p className="text-amber-600">Conservative: {row.projectedConservative !== null ? row.projectedConservative.toFixed(1) : '—'} {state.goal?.unit}</p>
-                          </div>
-                        );
-                      }}
-                    />
-                    <ReferenceLine y={state.goal?.targetWeight} stroke="#1e3a8a" strokeDasharray="4 4" />
-                    <Line type="monotone" dataKey="actual" stroke="#94a3b8" strokeWidth={2} dot={{ r: 2 }} connectNulls={false} />
-                    <Line type="monotone" dataKey="trend" stroke="#1e40af" strokeWidth={3} dot={{ r: 0 }} connectNulls={false} />
-                    <Line type="monotone" dataKey="projectedLikely" stroke="#3b82f6" strokeWidth={2.5} strokeDasharray="5 4" dot={{ r: 0 }} connectNulls={false} />
-                    <Line type="monotone" dataKey="projectedOptimistic" stroke="#10b981" strokeWidth={1.8} strokeDasharray="4 4" dot={{ r: 0 }} connectNulls={false} />
-                    <Line type="monotone" dataKey="projectedConservative" stroke="#f59e0b" strokeWidth={1.8} strokeDasharray="4 4" dot={{ r: 0 }} connectNulls={false} />
-                    <Brush
-                      dataKey="idx"
-                      height={24}
-                      stroke="#1e40af"
-                      startIndex={projectionRange?.startIndex}
-                      endIndex={projectionRange?.endIndex}
-                      onChange={(range) => {
-                        if (typeof range?.startIndex === 'number' && typeof range?.endIndex === 'number') {
-                          setProjectionRange({ startIndex: range.startIndex, endIndex: range.endIndex });
-                        }
-                      }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+              <div style={{ minWidth: `${Math.max(1200, projectionRows.length * 10)}px`, height: '100%' }}>
+                <ReactECharts option={projectionChartOption} style={{ width: '100%', height: '100%' }} />
               </div>
             </div>
           </div>
