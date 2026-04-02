@@ -11,9 +11,9 @@ import {
   Trash2, CheckCircle2, AlertCircle, Eye, LogOut, Sliders,
   Check, Home, BarChart3, ArrowRight, Minus, Flame, Bell, BellOff
 } from 'lucide-react';
-import { format, parseISO, addDays, differenceInDays, startOfWeek } from 'date-fns';
+import { format, parseISO, addDays, differenceInDays, startOfWeek, eachDayOfInterval } from 'date-fns';
 import { 
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Line
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Line, LineChart, ReferenceLine
 } from 'recharts';
 
 import { AppState, WeightEntry, UserGoal, DEFAULT_TAGS, AppSettings } from './types';
@@ -664,6 +664,120 @@ function InsightsView({ state }: { state: AppState }) {
   const predictions = useMemo(() => analyticsService.getPredictions(state.entries, state.goal!, state.settings.smoothingWindow), [state.entries, state.goal, state.settings.smoothingWindow]);
   const spikes = useMemo(() => analyticsService.detectSpikes(state.entries, state.settings.smoothingWindow), [state.entries, state.settings.smoothingWindow]);
   const latestSpike = spikes[spikes.length - 1];
+  const trendData = useMemo(
+    () => analyticsService.getTrendData(state.entries, state.settings.smoothingWindow),
+    [state.entries, state.settings.smoothingWindow]
+  );
+  const projectionRows = useMemo(() => {
+    if (!state.goal || trendData.length === 0) return [];
+
+    const sortedEntries = [...state.entries].sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
+    const actualByDay = new Map<string, number>();
+    sortedEntries.forEach(entry => {
+      actualByDay.set(format(parseISO(entry.date), 'yyyy-MM-dd'), entry.weight);
+    });
+
+    const trendByDay = new Map<string, number>();
+    trendData.forEach(entry => {
+      trendByDay.set(format(parseISO(entry.date), 'yyyy-MM-dd'), entry.trendWeight);
+    });
+
+    const firstActualDate = parseISO(sortedEntries[0].date);
+    const latestTrendPoint = trendData[trendData.length - 1];
+    const latestDate = parseISO(latestTrendPoint.date);
+    const goalDate = predictions?.likely ?? addDays(latestDate, 90);
+    const allDates = eachDayOfInterval({ start: firstActualDate, end: goalDate });
+    const isLosing = state.goal.targetWeight < state.goal.startWeight;
+    const expectedDirection = isLosing ? -1 : 1;
+
+    // Blend regression slope from recent trend data with current 30-day velocity.
+    const recentTrend = trendData.slice(-Math.min(45, trendData.length));
+    let regressionSlope = ratePerDay;
+    if (recentTrend.length >= 2) {
+      const x0 = parseISO(recentTrend[0].date).getTime();
+      const points = recentTrend.map(p => ({
+        x: (parseISO(p.date).getTime() - x0) / (1000 * 60 * 60 * 24),
+        y: p.trendWeight
+      }));
+      const n = points.length;
+      const sumX = points.reduce((s, p) => s + p.x, 0);
+      const sumY = points.reduce((s, p) => s + p.y, 0);
+      const sumXY = points.reduce((s, p) => s + (p.x * p.y), 0);
+      const sumXX = points.reduce((s, p) => s + (p.x * p.x), 0);
+      const denominator = (n * sumXX) - (sumX * sumX);
+      if (denominator !== 0) {
+        regressionSlope = ((n * sumXY) - (sumX * sumY)) / denominator;
+      }
+    }
+
+    let projectedDailySlope = (regressionSlope * 0.7) + (ratePerDay * 0.3);
+    if (!Number.isFinite(projectedDailySlope) || projectedDailySlope === 0) {
+      projectedDailySlope = ratePerDay;
+    }
+
+    // Ensure projection direction is coherent with the goal.
+    if (Math.sign(projectedDailySlope) !== expectedDirection) {
+      projectedDailySlope = expectedDirection * Math.max(0.02, Math.abs(ratePerDay));
+    }
+
+    // Build a day-by-day forecast with slight deceleration near target.
+    const projectedByDay = new Map<string, number>();
+    const initialRemaining = Math.max(0.01, Math.abs(state.goal.targetWeight - latestTrendPoint.trendWeight));
+    let projectedWeight = latestTrendPoint.trendWeight;
+    for (let i = 1; i <= differenceInDays(goalDate, latestDate); i++) {
+      const d = addDays(latestDate, i);
+      const remaining = state.goal.targetWeight - projectedWeight;
+      const remainingRatio = Math.min(1, Math.abs(remaining) / initialRemaining);
+      const damping = 0.55 + (0.45 * remainingRatio);
+      projectedWeight += projectedDailySlope * damping;
+
+      if (isLosing && projectedWeight < state.goal.targetWeight) projectedWeight = state.goal.targetWeight;
+      if (!isLosing && projectedWeight > state.goal.targetWeight) projectedWeight = state.goal.targetWeight;
+
+      projectedByDay.set(format(d, 'yyyy-MM-dd'), projectedWeight);
+    }
+
+    return allDates.map((date, idx) => {
+      const key = format(date, 'yyyy-MM-dd');
+      const actual = actualByDay.get(key);
+      const trend = trendByDay.get(key);
+
+      let projected: number | null = null;
+      if (date > latestDate) {
+        projected = projectedByDay.get(key) ?? null;
+      }
+
+      const modeledWeight = trend ?? projected ?? (actual ?? null);
+      const toGoal = modeledWeight !== null ? Math.abs(modeledWeight - state.goal.targetWeight) : null;
+
+      let progressPct = 0;
+      if (modeledWeight !== null) {
+        const total = Math.abs(state.goal.startWeight - state.goal.targetWeight);
+        const moved = Math.abs(state.goal.startWeight - modeledWeight);
+        progressPct = total > 0 ? Math.min(100, Math.max(0, (moved / total) * 100)) : 0;
+      }
+
+      return {
+        idx: idx + 1,
+        date,
+        actual: actual ?? null,
+        trend: trend ?? null,
+        projected,
+        toGoal,
+        progressPct,
+        phase: date > latestDate ? 'Projected' : 'Actual'
+      };
+    });
+  }, [state.goal, state.entries, trendData, predictions, ratePerDay]);
+  const projectionYDomain = useMemo(() => {
+    if (projectionRows.length === 0 || !state.goal) return ['auto', 'auto'] as const;
+    const values = projectionRows.flatMap(r => [r.actual, r.trend, r.projected].filter((v): v is number => v !== null));
+    values.push(state.goal.targetWeight, state.goal.startWeight);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const pad = Math.max(0.8, (max - min) * 0.12);
+    return [min - pad, max + pad] as const;
+  }, [projectionRows, state.goal]);
 
   return (
     <motion.div 
@@ -761,6 +875,83 @@ function InsightsView({ state }: { state: AppState }) {
             </p>
           </div>
         </div>
+
+        <section className="bg-white border border-line rounded-2xl p-6 shadow-sm">
+          <div className="mb-4">
+            <h3 className="text-sm font-bold text-ink">Start-to-Goal Projection Graph</h3>
+            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mt-1">
+              Actual datapoints through today, statistical projections after latest entry
+            </p>
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-line">
+            <div className="min-w-[960px] h-[360px] p-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={projectionRows}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(d) => format(d, 'MMM d')}
+                    minTickGap={32}
+                    tick={{ fill: '#94a3b8', fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    domain={projectionYDomain}
+                    tick={{ fill: '#94a3b8', fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={42}
+                  />
+                  <Tooltip
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload || payload.length === 0) return null;
+                      const row = payload[0]?.payload;
+                      return (
+                        <div className="bg-white p-3 rounded-xl shadow-xl border border-slate-100 text-xs">
+                          <p className="font-bold text-slate-600 mb-1">{format(label, 'MMMM d, yyyy')}</p>
+                          <p className="text-slate-700">Actual: {row.actual !== null ? row.actual.toFixed(1) : '—'} {state.goal?.unit}</p>
+                          <p className="text-brand-600">Trend: {row.trend !== null ? row.trend.toFixed(1) : '—'} {state.goal?.unit}</p>
+                          <p className="text-slate-500">Projected: {row.projected !== null ? row.projected.toFixed(1) : '—'} {state.goal?.unit}</p>
+                          <p className="text-slate-500 mt-1">{row.phase}</p>
+                        </div>
+                      );
+                    }}
+                  />
+                  <ReferenceLine y={state.goal?.targetWeight} stroke="#1e3a8a" strokeDasharray="4 4" />
+                  <Line
+                    type="monotone"
+                    dataKey="actual"
+                    stroke="#94a3b8"
+                    strokeWidth={2}
+                    dot={{ r: 2 }}
+                    connectNulls={false}
+                    name="Actual"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="trend"
+                    stroke="#1e40af"
+                    strokeWidth={3}
+                    dot={{ r: 0 }}
+                    connectNulls={false}
+                    name="Trend"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="projected"
+                    stroke="#60a5fa"
+                    strokeWidth={2}
+                    strokeDasharray="6 4"
+                    dot={{ r: 1 }}
+                    connectNulls={false}
+                    name="Projected"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </section>
       </div>
     </motion.div>
   );
