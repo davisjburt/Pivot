@@ -9,7 +9,7 @@ import {
   Plus, TrendingDown, TrendingUp, Calendar, Target, History, 
   Settings as SettingsIcon, Info, ChevronRight, Download, Upload, 
   Trash2, CheckCircle2, AlertCircle, Eye, LogOut, Sliders,
-  Check, LayoutDashboard, BarChart3, ArrowRight, Minus, Flame, Bell, BellOff
+  Check, Home, BarChart3, ArrowRight, Minus, Flame, Bell, BellOff
 } from 'lucide-react';
 import { format, parseISO, addDays, differenceInDays, startOfWeek } from 'date-fns';
 import { 
@@ -205,7 +205,7 @@ export default function App() {
 
         {/* Mobile Nav */}
         <nav className="absolute bottom-0 left-0 right-0 bg-white border-t border-line px-6 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] flex justify-between items-center z-50">
-          <MobileNavLink active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<Target size={24} />} />
+          <MobileNavLink active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<Home size={24} />} />
           <MobileNavLink active={activeTab === 'history'} onClick={() => setActiveTab('history')} icon={<History size={24} />} />
           <button onClick={() => setIsLogging(true)} className="w-14 h-14 bg-brand-500 rounded-full flex items-center justify-center text-white shadow-lg -mt-10 border-4 border-paper active:scale-95 transition-transform"><Plus size={28} /></button>
           <MobileNavLink active={activeTab === 'insights'} onClick={() => setActiveTab('insights')} icon={<Info size={24} />} />
@@ -311,6 +311,40 @@ function Dashboard({ state, onLogClick }: { state: AppState, onLogClick: () => v
   const streak = useMemo(() => analyticsService.getStreak(state.entries), [state.entries]);
 
   const displayWeight = (w: number) => state.settings.hideRawNumbers ? '—' : w.toFixed(1);
+  const nextMilestoneProgress = useMemo(() => {
+    if (!state.goal || !latest || !nextMilestone) return 0;
+
+    const isLosing = state.goal.targetWeight < state.goal.startWeight;
+    const previousMilestone = [...milestones]
+      .reverse()
+      .find(m => isLosing ? m.target > nextMilestone.target : m.target < nextMilestone.target);
+    const startPoint = previousMilestone ? previousMilestone.target : state.goal.startWeight;
+    const endPoint = nextMilestone.target;
+    const totalDistance = Math.abs(endPoint - startPoint);
+    if (totalDistance === 0) return 100;
+
+    const progressDistance = isLosing
+      ? startPoint - latest.weight
+      : latest.weight - startPoint;
+    const rawPercent = (progressDistance / totalDistance) * 100;
+    return Math.min(100, Math.max(0, rawPercent));
+  }, [state.goal, latest, nextMilestone, milestones]);
+  const getMilestoneProgress = (milestoneTarget: number) => {
+    if (!state.goal || !latest) return 0;
+    const isLosing = state.goal.targetWeight < state.goal.startWeight;
+    const previousMilestone = [...milestones]
+      .reverse()
+      .find(m => isLosing ? m.target > milestoneTarget : m.target < milestoneTarget);
+    const startPoint = previousMilestone ? previousMilestone.target : state.goal.startWeight;
+    const totalDistance = Math.abs(milestoneTarget - startPoint);
+    if (totalDistance === 0) return 100;
+
+    const progressDistance = isLosing
+      ? startPoint - latest.weight
+      : latest.weight - startPoint;
+    const rawPercent = (progressDistance / totalDistance) * 100;
+    return Math.min(100, Math.max(0, rawPercent));
+  };
 
   return (
     <motion.div 
@@ -346,7 +380,13 @@ function Dashboard({ state, onLogClick }: { state: AppState, onLogClick: () => v
 
       <div className="grid grid-cols-2 gap-4">
         <StatCard label="Today's Weight" value={latest ? displayWeight(latest.weight) : '—'} unit={state.goal?.unit} subValue={latest ? `Trend: ${latest.trendWeight.toFixed(1)}` : ''} trend="neutral" />
-        <StatCard label="Next Milestone" value={nextMilestone?.target.toFixed(1) || '—'} unit={state.goal?.unit} subValue={`${Math.abs((latest?.trendWeight || 0) - (nextMilestone?.target || 0)).toFixed(1)} to go`} trend="down" />
+        <MilestoneBucketCard
+          label="Next Milestone"
+          value={nextMilestone?.target.toFixed(1) || '—'}
+          unit={state.goal?.unit}
+          percentage={nextMilestone ? nextMilestoneProgress : 0}
+          subValue={nextMilestone ? `${Math.abs((latest?.trendWeight || 0) - nextMilestone.target).toFixed(1)} to go` : 'No milestone set'}
+        />
         <StatCard label="Milestones" value={completed.length} unit={`of ${milestones.length}`} subValue="Total completed" trend="neutral" />
         <StatCard 
           label="Projected Goal" 
@@ -405,20 +445,64 @@ function Dashboard({ state, onLogClick }: { state: AppState, onLogClick: () => v
         <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
           {milestones.map(m => {
             const isCompleted = completed.find(c => c.id === m.id);
+            const isActive = nextMilestone?.id === m.id;
+            const percent = getMilestoneProgress(m.target);
             return (
               <div key={m.id} className={cn(
-                "flex-shrink-0 w-24 p-4 rounded-2xl border text-center transition-all", 
-                isCompleted ? "bg-brand-50 border-brand-100 text-brand-700 shadow-sm shadow-brand-50" : "bg-slate-50 border-slate-100 text-slate-400"
+                "relative overflow-hidden flex-shrink-0 w-24 p-4 rounded-2xl border text-center transition-all",
+                isCompleted
+                  ? "border-brand-200 text-brand-700 shadow-sm shadow-brand-50"
+                  : isActive
+                    ? "border-brand-400 text-brand-800 shadow-md shadow-brand-200 ring-2 ring-brand-300/70"
+                    : "border-slate-100 text-slate-400"
               )}>
+                <div className="absolute inset-0 bg-slate-50" />
+                <div
+                  className={cn(
+                    "absolute bottom-0 left-0 right-0 transition-all duration-500",
+                    isActive ? "bg-brand-300" : "bg-brand-100"
+                  )}
+                  style={{ height: `${percent}%` }}
+                />
+                <div className="relative z-10">
                 <p className="text-[10px] font-bold uppercase mb-1 tracking-wider">{m.label}</p>
                 <p className="text-base font-black">{m.target.toFixed(0)}</p>
+                <p className="mt-2 text-[9px] font-black uppercase tracking-wider text-brand-900">{Math.round(percent)}%</p>
                 {isCompleted && <CheckCircle2 size={14} className="mx-auto mt-2" />}
+                </div>
               </div>
             );
           })}
         </div>
       </section>
     </motion.div>
+  );
+}
+
+function MilestoneBucketCard({ label, value, unit, percentage, subValue }: any) {
+  return (
+    <div className="bg-white p-6 rounded-2xl border border-line shadow-sm flex flex-col justify-between">
+      <div>
+        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-2">{label}</p>
+        <div className="flex items-baseline gap-1">
+          <h4 className="text-3xl font-bold text-ink tracking-tight">{value}</h4>
+          {unit && <span className="text-slate-400 text-sm font-medium">{unit}</span>}
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        <div className="relative h-10 rounded-xl border border-brand-200 bg-brand-50 overflow-hidden">
+          <div
+            className="absolute bottom-0 left-0 right-0 bg-brand-500/80 transition-all duration-500"
+            style={{ height: `${percentage}%` }}
+          />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-[10px] font-black uppercase tracking-widest text-brand-900">{Math.round(percentage)}% filled</span>
+          </div>
+        </div>
+        <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">{subValue}</p>
+      </div>
+    </div>
   );
 }
 
