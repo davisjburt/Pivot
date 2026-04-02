@@ -111,14 +111,24 @@ export const analyticsService = {
     return milestones;
   },
 
-  getCompletedMilestones: (entries: WeightEntry[], goal: UserGoal) => {
+  getCompletedMilestones: (entries: WeightEntry[], goal: UserGoal, windowSize = 10) => {
     if (entries.length === 0 || !goal) return [];
     const milestones = analyticsService.getMilestones(goal);
-    const trendData = analyticsService.getTrendData(entries);
-    const latestTrend = trendData[trendData.length - 1].trendWeight;
+    const trendData = analyticsService.getTrendData(entries, windowSize);
     const isLosing = goal.targetWeight < goal.startWeight;
+    const latestTrend = trendData[trendData.length - 1].trendWeight;
 
-    return milestones.filter(m => isLosing ? latestTrend <= m.target : latestTrend >= m.target);
+    return milestones
+      .filter(m => isLosing ? latestTrend <= m.target : latestTrend >= m.target)
+      .map(m => {
+        const achievedOn = trendData.find(entry =>
+          isLosing ? entry.trendWeight <= m.target : entry.trendWeight >= m.target
+        );
+        return {
+          ...m,
+          date: achievedOn?.date
+        };
+      });
   },
 
   getRateOfChange: (entries: WeightEntry[], days = 30, windowSize = 10) => {
@@ -159,14 +169,31 @@ export const analyticsService = {
     
     return {
       likely: addDays(latestDate, Math.round(remaining / absRate)),
-      optimistic: addDays(latestDate, Math.round(remaining / (absRate * 1.15))),
-      pessimistic: addDays(latestDate, Math.round(remaining / (absRate * 0.85)))
+      optimistic: addDays(latestDate, Math.round(remaining / (absRate * 1.2))),
+      pessimistic: addDays(latestDate, Math.round(remaining / (absRate * 0.8)))
     };
   },
 
   detectSpikes: (entries: WeightEntry[], windowSize = 10) => {
-    if (entries.length < 2) return [];
+    if (entries.length < 7) return [];
     const trendData = analyticsService.getTrendData(entries, windowSize);
-    return trendData.filter(e => Math.abs(e.weight - e.trendWeight) > (e.trendWeight * 0.01));
+    return trendData.filter((entry, index) => {
+      // Ignore warm-up period where EMA naturally lags and can over-flag
+      if (index < Math.max(3, Math.floor(windowSize / 2))) return false;
+
+      const residual = Math.abs(entry.weight - entry.trendWeight);
+      const recent = trendData
+        .slice(Math.max(0, index - 14), index)
+        .map(e => Math.abs(e.weight - e.trendWeight))
+        .filter(v => Number.isFinite(v));
+
+      const typicalResidual = recent.length > 0
+        ? recent.reduce((sum, v) => sum + v, 0) / recent.length
+        : 0;
+
+      // Require both a relative and practical minimum difference to avoid false positives
+      const threshold = Math.max(entry.trendWeight * 0.015, typicalResidual * 2, 0.6);
+      return residual > threshold;
+    });
   }
 };

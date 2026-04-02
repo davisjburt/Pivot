@@ -235,8 +235,8 @@ function AuthView() {
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-100 flex justify-center overflow-hidden">
-      <div className="w-full max-w-md bg-paper h-full relative shadow-2xl flex flex-col items-center justify-center p-6 text-center">
+    <div className="fixed inset-0 bg-paper flex justify-center overflow-hidden">
+      <div className="w-full max-w-md bg-white h-full relative shadow-2xl border-x border-line flex flex-col items-center justify-center p-6 text-center">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -247,30 +247,30 @@ function AuthView() {
         </div>
         <div className="space-y-2">
           <h1 className="text-4xl font-black tracking-tight text-ink">Pivot</h1>
-          <p className="text-slate-500 font-medium">Precision weight tracking for focused progress.</p>
+          <p className="text-slate-600 font-medium">Precision weight tracking for focused progress.</p>
         </div>
         
         <div className="pt-8">
           <button 
             onClick={handleLogin}
             disabled={loading}
-            className="w-full bg-slate-900 p-5 rounded-2xl font-bold flex items-center justify-center gap-4 hover:opacity-90 transition-all active:scale-95 shadow-xl disabled:opacity-50"
+            className="w-full bg-brand-600 text-white p-5 rounded-2xl font-bold flex items-center justify-center gap-4 hover:bg-brand-500 transition-all active:scale-95 shadow-xl shadow-brand-600/25 disabled:opacity-50"
           >
             {loading ? (
               <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
             ) : (
               <>
                 <svg className="w-6 h-6" viewBox="0 0 24 24">
-                  <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                  <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                  <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 12-4.53z" />
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                 </svg>
                 Continue with Google
               </>
             )}
           </button>
-          <p className="mt-6 text-[10px] text-slate-400 uppercase tracking-widest font-bold">Secure Authentication via Firebase</p>
+          <p className="mt-6 text-[10px] text-slate-500 uppercase tracking-widest font-bold">Secure Authentication via Firebase</p>
         </div>
       </motion.div>
       </div>
@@ -302,7 +302,10 @@ function Dashboard({ state, onLogClick }: { state: AppState, onLogClick: () => v
   const trendData = useMemo(() => analyticsService.getTrendData(state.entries, state.settings.smoothingWindow), [state.entries, state.settings.smoothingWindow]);
   const latest = trendData[trendData.length - 1];
   const milestones = useMemo(() => analyticsService.getMilestones(state.goal!), [state.goal]);
-  const completed = useMemo(() => analyticsService.getCompletedMilestones(state.entries, state.goal!), [state.entries, state.goal]);
+  const completed = useMemo(
+    () => analyticsService.getCompletedMilestones(state.entries, state.goal!, state.settings.smoothingWindow),
+    [state.entries, state.goal, state.settings.smoothingWindow]
+  );
   const nextMilestone = milestones.find(m => !completed.find(c => c.id === m.id));
   const predictions = useMemo(() => analyticsService.getPredictions(state.entries, state.goal!, state.settings.smoothingWindow), [state.entries, state.goal, state.settings.smoothingWindow]);
   const streak = useMemo(() => analyticsService.getStreak(state.entries), [state.entries]);
@@ -564,9 +567,16 @@ function HistoryView({ entries, onDelete, unit }: { entries: WeightEntry[], onDe
 }
 
 function InsightsView({ state }: { state: AppState }) {
-  const rate = useMemo(() => analyticsService.getRateOfChange(state.entries, state.settings.smoothingWindow), [state.entries, state.settings.smoothingWindow]);
+  const ratePerDay = useMemo(
+    () => analyticsService.getRateOfChange(state.entries, 30, state.settings.smoothingWindow),
+    [state.entries, state.settings.smoothingWindow]
+  );
+  const ratePerWeek = ratePerDay * 7;
   const milestones = useMemo(() => analyticsService.getMilestones(state.goal!), [state.goal]);
-  const completed = useMemo(() => analyticsService.getCompletedMilestones(state.entries, state.goal!), [state.entries, state.goal]);
+  const completed = useMemo(
+    () => analyticsService.getCompletedMilestones(state.entries, state.goal!, state.settings.smoothingWindow),
+    [state.entries, state.goal, state.settings.smoothingWindow]
+  );
   const predictions = useMemo(() => analyticsService.getPredictions(state.entries, state.goal!, state.settings.smoothingWindow), [state.entries, state.goal, state.settings.smoothingWindow]);
   const spikes = useMemo(() => analyticsService.detectSpikes(state.entries, state.settings.smoothingWindow), [state.entries, state.settings.smoothingWindow]);
   const latestSpike = spikes[spikes.length - 1];
@@ -600,8 +610,8 @@ function InsightsView({ state }: { state: AppState }) {
           <div className="bg-white border border-line rounded-2xl p-8 shadow-sm">
             <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-6">Current Velocity</h3>
             <div className="flex items-baseline gap-2">
-              <span className={cn("text-5xl font-bold", rate < 0 ? "text-brand-600" : "text-red-500")}>
-                {rate > 0 ? '+' : ''}{rate.toFixed(2)}
+              <span className={cn("text-5xl font-bold", ratePerWeek < 0 ? "text-brand-600" : "text-red-500")}>
+                {ratePerWeek > 0 ? '+' : ''}{ratePerWeek.toFixed(2)}
               </span>
               <span className="text-slate-400 font-medium">{state.goal?.unit} / week</span>
             </div>
@@ -626,7 +636,7 @@ function InsightsView({ state }: { state: AppState }) {
                     <div className="flex-1">
                       <div className="flex justify-between items-baseline">
                         <span className={cn("text-sm font-bold", isCompleted ? "text-ink" : "text-slate-400")}>{m.target.toFixed(1)} {state.goal?.unit}</span>
-                        {isCompleted && <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{format(parseISO(isCompleted.date), 'MMM d, yyyy')}</span>}
+                        {isCompleted?.date && <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{format(parseISO(isCompleted.date), 'MMM d, yyyy')}</span>}
                       </div>
                     </div>
                   </div>
@@ -636,7 +646,7 @@ function InsightsView({ state }: { state: AppState }) {
           </div>
         </div>
 
-        <div className="bg-slate-900 rounded-2xl p-10 shadow-2xl flex flex-col justify-between">
+        <div className="bg-white border border-line rounded-2xl p-10 shadow-sm flex flex-col justify-between">
           <div>
             <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-10">Goal Projection</h3>
             <div className="space-y-10">
@@ -646,7 +656,7 @@ function InsightsView({ state }: { state: AppState }) {
                 <p className="text-xs text-slate-500 mt-2">Calculated using your current 30-day average velocity.</p>
               </div>
               
-              <div className="grid grid-cols-1 gap-6 pt-10 border-t border-slate-800">
+              <div className="grid grid-cols-1 gap-6 pt-10 border-t border-line">
                 <div>
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Optimistic Scenario</p>
                   <p className="text-xl font-bold">{predictions ? format(predictions.optimistic, 'MMMM d, yyyy') : '—'}</p>
@@ -661,7 +671,7 @@ function InsightsView({ state }: { state: AppState }) {
             </div>
           </div>
           
-          <div className="mt-10 p-4 bg-slate-900 rounded-xl border border-slate-800">
+          <div className="mt-10 p-4 bg-slate-50 rounded-xl border border-line">
             <p className="text-[10px] text-slate-400 leading-relaxed italic">
               "Weight management is a marathon, not a sprint. Focus on the trend, not the daily number."
             </p>
@@ -1219,15 +1229,15 @@ function Onboarding({ onComplete, initialWeight, initialUnit = 'lbs' }: any) {
               <div className="space-y-6">
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Current Weight ({unit})</label>
-                  <input type="number" step="0.1" value={currentWeight} onChange={(e) => setCurrentWeight(e.target.value)} className="w-full p-4 bg-slate-50 rounded-xl text-2xl font-bold outline-none border border-transparent focus:border-brand-500 focus:bg-white transition-all" placeholder="0.0" />
+                  <input type="number" step="0.1" value={currentWeight} onChange={(e) => setCurrentWeight(e.target.value)} className="w-full p-4 bg-slate-50 text-ink placeholder:text-slate-400 rounded-xl text-2xl font-bold outline-none border border-line focus:border-brand-500 focus:bg-white transition-all" placeholder="0.0" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Goal Weight ({unit})</label>
-                  <input type="number" step="0.1" value={targetWeight} onChange={(e) => setTargetWeight(e.target.value)} className="w-full p-4 bg-slate-50 rounded-xl text-2xl font-bold outline-none border border-transparent focus:border-brand-500 focus:bg-white transition-all" placeholder="0.0" />
+                  <input type="number" step="0.1" value={targetWeight} onChange={(e) => setTargetWeight(e.target.value)} className="w-full p-4 bg-slate-50 text-ink placeholder:text-slate-400 rounded-xl text-2xl font-bold outline-none border border-line focus:border-brand-500 focus:bg-white transition-all" placeholder="0.0" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Milestone Size</label>
-                  <select value={milestoneSize} onChange={(e) => setMilestoneSize(e.target.value)} className="w-full p-4 bg-slate-50 rounded-xl font-bold outline-none border border-transparent focus:border-brand-500 focus:bg-white transition-all appearance-none">
+                  <select value={milestoneSize} onChange={(e) => setMilestoneSize(e.target.value)} className="w-full p-4 bg-slate-50 text-ink rounded-xl font-bold outline-none border border-line focus:border-brand-500 focus:bg-white transition-all appearance-none">
                     <option value="2">2 {unit} chunks</option>
                     <option value="5">5 {unit} chunks</option>
                     <option value="10">10 {unit} chunks</option>
