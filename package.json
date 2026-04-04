@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build",
@@ -49,8 +52,5 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
-  },
-  "overrides": {
-    "node-domexception": "file:packages/node-domexception"
   }
 }
