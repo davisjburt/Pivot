@@ -23,6 +23,8 @@ export interface AppSettings {
   darkMode: boolean;
   remindersEnabled?: boolean;
   reminderTime?: string;
+  /** When true, each logged weight is written to Apple Health (iOS) or Health Connect (Android). */
+  syncToSystemHealth?: boolean;
 }
 
 export interface AppState {

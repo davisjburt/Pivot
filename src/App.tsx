@@ -9,7 +9,7 @@ import {
   Plus, TrendingDown, TrendingUp, Calendar, Target, History, 
   Settings as SettingsIcon, Info, ChevronRight, Download, Upload, 
   Trash2, CheckCircle2, AlertCircle, Eye, LogOut, Sliders,
-  Check, Home, BarChart3, ArrowRight, Minus, Flame, Bell, BellOff
+  Check, Home, BarChart3, ArrowRight, Minus, Flame, Bell, BellOff, HeartPulse
 } from 'lucide-react';
 import { format, parseISO, addDays, differenceInDays, startOfWeek, eachDayOfInterval } from 'date-fns';
 import { 
@@ -21,6 +21,12 @@ import { AppState, WeightEntry, UserGoal, DEFAULT_TAGS, AppSettings } from './ty
 import { storageService } from './services/storage';
 import { analyticsService } from './services/analytics';
 import { firebaseService } from './services/firebaseService';
+import {
+  isNativeHealthSupported,
+  requestSystemHealthWriteAccess,
+  saveLoggedWeightToSystemHealth,
+} from './services/healthSync';
+import { Capacitor } from '@capacitor/core';
 import { auth, googleProvider, signInWithPopup, signOut, onAuthStateChanged, FirebaseUser } from './firebase';
 import { cn } from './lib/utils';
 
@@ -111,6 +117,17 @@ export default function App() {
     if (!user) return;
     const newEntry: WeightEntry = { ...entry, id: crypto.randomUUID() };
     await firebaseService.addEntry(user.uid, newEntry);
+    if (state.settings.syncToSystemHealth) {
+      try {
+        await saveLoggedWeightToSystemHealth(
+          newEntry.weight,
+          state.goal?.unit || "lbs",
+          newEntry.date,
+        );
+      } catch (err) {
+        console.warn("Could not sync weight to system health:", err);
+      }
+    }
     setIsLogging(false);
   };
 
@@ -192,9 +209,12 @@ export default function App() {
                 onExport={() => storageService.exportData(state)}
                 onImportJson={handleImportJson}
                 onImportCsv={handleImportCsv}
+                nativeHealthLabel={Capacitor.getPlatform() === 'ios' ? 'Apple Health' : 'Health Connect'}
+                showSystemHealthSync={isNativeHealthSupported()}
+                onRequestSystemHealthAccess={requestSystemHealthWriteAccess}
                 onReset={async () => {
                   if (confirm('Are you sure you want to reset all data? This cannot be undone.')) {
-                    await firebaseService.saveUserProfile(user.uid, { goal: null, onboarded: false, settings: { smoothingWindow: 10, hideRawNumbers: false } });
+                    await firebaseService.saveUserProfile(user.uid, { goal: null, onboarded: false, settings: { smoothingWindow: 10, hideRawNumbers: false, darkMode: false } });
                     // We'd also need to delete all entries, but for now let's just reset profile
                   }
                 }} 
@@ -1050,7 +1070,7 @@ function PredictionCard({ label, date, color }: any) {
   );
 }
 
-function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, onExport, onImportJson, onImportCsv, onReset, onSignOut }: any) {
+function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, onExport, onImportJson, onImportCsv, nativeHealthLabel, showSystemHealthSync, onRequestSystemHealthAccess, onReset, onSignOut }: any) {
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [remindersEnabled, setRemindersEnabled] = useState(state.settings.remindersEnabled || false);
   const [reminderTime, setReminderTime] = useState(state.settings.reminderTime || '08:00');
@@ -1345,6 +1365,66 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
               </div>
             </div>
           </div>
+
+          {showSystemHealthSync && (
+            <div className="bg-white p-8 rounded-2xl border border-line shadow-sm space-y-6">
+              <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                {nativeHealthLabel}
+              </h3>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-brand-50 text-brand-600">
+                    <HeartPulse size={20} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-ink">
+                      Save logged weight
+                    </p>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mt-1 max-w-md">
+                      When enabled, each new entry is copied to {nativeHealthLabel}{" "}
+                      using your goal unit (stored as kilograms in Health).
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const next = !state.settings.syncToSystemHealth;
+                    if (next) {
+                      const granted = await onRequestSystemHealthAccess();
+                      if (!granted) {
+                        setStatus({
+                          type: "error",
+                          message: `Permission required to write to ${nativeHealthLabel}.`,
+                        });
+                        return;
+                      }
+                    }
+                    onUpdateSettings({ syncToSystemHealth: next });
+                    if (next) {
+                      setStatus({
+                        type: "success",
+                        message: `${nativeHealthLabel} sync enabled.`,
+                      });
+                    }
+                  }}
+                  className={cn(
+                    "w-12 h-6 rounded-full transition-all relative shrink-0",
+                    state.settings.syncToSystemHealth
+                      ? "bg-brand-500"
+                      : "bg-slate-200",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
+                      state.settings.syncToSystemHealth ? "left-7" : "left-1",
+                    )}
+                  />
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="bg-white p-8 rounded-2xl border border-line shadow-sm space-y-8">
             <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Notifications</h3>

@@ -40,7 +40,7 @@ export const storageService = {
       goal: null,
       entries: [],
       onboarded: false,
-      settings: { smoothingWindow: 10, hideRawNumbers: false }
+      settings: { smoothingWindow: 10, hideRawNumbers: false, darkMode: false, syncToSystemHealth: false }
     };
 
     if (!data) return defaultState;
@@ -68,6 +68,10 @@ export const storageService = {
         settings: {
           smoothingWindow: typeof data.settings?.smoothingWindow === 'number' ? data.settings.smoothingWindow : 10,
           hideRawNumbers: !!data.settings?.hideRawNumbers,
+          darkMode: !!data.settings?.darkMode,
+          remindersEnabled: data.settings?.remindersEnabled,
+          reminderTime: data.settings?.reminderTime,
+          syncToSystemHealth: !!data.settings?.syncToSystemHealth,
         }
       };
     }
