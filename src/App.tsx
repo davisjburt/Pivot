@@ -3,13 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Plus, TrendingDown, TrendingUp, Calendar, Target, History, 
   Settings as SettingsIcon, Info, ChevronRight, Download, Upload, 
   Trash2, CheckCircle2, AlertCircle, Eye, LogOut, Sliders,
-  Check, Home, BarChart3, ArrowRight, Minus, Flame, Bell, BellOff, HeartPulse
+  Check, Home, BarChart3, ArrowRight, Minus, Flame, Bell, BellOff, HeartPulse, Link2
 } from 'lucide-react';
 import { format, parseISO, addDays, differenceInDays, startOfWeek, eachDayOfInterval } from 'date-fns';
 import { 
@@ -25,6 +25,8 @@ import {
   isNativeHealthSupported,
   requestSystemHealthWriteAccess,
   saveLoggedWeightToSystemHealth,
+  getSystemHealthConnectionInfo,
+  type SystemHealthConnectionInfo,
 } from './services/healthSync';
 import { Capacitor } from '@capacitor/core';
 import { auth, googleProvider, signInWithPopup, signOut, onAuthStateChanged, FirebaseUser } from './firebase';
@@ -1072,10 +1074,27 @@ function PredictionCard({ label, date, color }: any) {
 
 function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, onExport, onImportJson, onImportCsv, nativeHealthLabel, showSystemHealthSync, onRequestSystemHealthAccess, onReset, onSignOut }: any) {
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [healthInfo, setHealthInfo] = useState<SystemHealthConnectionInfo | null>(null);
+  const [healthLoading, setHealthLoading] = useState(true);
   const [remindersEnabled, setRemindersEnabled] = useState(state.settings.remindersEnabled || false);
   const [reminderTime, setReminderTime] = useState(state.settings.reminderTime || '08:00');
   const [pushSupported, setPushSupported] = useState('serviceWorker' in navigator && 'PushManager' in window);
   const vapidConfigured = Boolean((import.meta as any).env?.VITE_VAPID_PUBLIC_KEY);
+
+  const refreshHealthConnection = useCallback(async () => {
+    if (!showSystemHealthSync) return;
+    setHealthLoading(true);
+    try {
+      const info = await getSystemHealthConnectionInfo();
+      setHealthInfo(info);
+    } finally {
+      setHealthLoading(false);
+    }
+  }, [showSystemHealthSync]);
+
+  useEffect(() => {
+    void refreshHealthConnection();
+  }, [refreshHealthConnection, state.settings.syncToSystemHealth]);
 
   // Helper function for VAPID key
   const urlBase64ToUint8Array = (base64String: string) => {
@@ -1366,65 +1385,149 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
             </div>
           </div>
 
-          {showSystemHealthSync && (
-            <div className="bg-white p-8 rounded-2xl border border-line shadow-sm space-y-6">
-              <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                {nativeHealthLabel}
-              </h3>
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-xl bg-brand-50 text-brand-600">
-                    <HeartPulse size={20} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-ink">
-                      Save logged weight
-                    </p>
-                    <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mt-1 max-w-md">
-                      When enabled, each new entry is copied to {nativeHealthLabel}{" "}
-                      using your goal unit (stored as kilograms in Health).
-                    </p>
-                  </div>
+          {showSystemHealthSync && (() => {
+            const healthReady = healthInfo?.available === true;
+            const hasWrite = healthInfo?.writeAuthorized === true;
+            const syncOn = Boolean(state.settings.syncToSystemHealth);
+            const isFullyConnected = syncOn && healthReady && hasWrite;
+            const needsPermission = syncOn && healthReady && !hasWrite;
+
+            const handleHealthConnect = async () => {
+              const granted = await onRequestSystemHealthAccess();
+              if (!granted) {
+                setStatus({
+                  type: 'error',
+                  message: `Allow ${nativeHealthLabel} access to write body weight, or try again.`,
+                });
+                return;
+              }
+              onUpdateSettings({ syncToSystemHealth: true });
+              setStatus({
+                type: 'success',
+                message: `Connected to ${nativeHealthLabel}. New logs will sync.`,
+              });
+              await refreshHealthConnection();
+            };
+
+            const handleHealthSyncToggle = async () => {
+              const next = !state.settings.syncToSystemHealth;
+              if (next) {
+                const granted = await onRequestSystemHealthAccess();
+                if (!granted) {
+                  setStatus({
+                    type: 'error',
+                    message: `Permission required to write to ${nativeHealthLabel}.`,
+                  });
+                  return;
+                }
+              }
+              onUpdateSettings({ syncToSystemHealth: next });
+              if (next) {
+                setStatus({
+                  type: 'success',
+                  message: `${nativeHealthLabel} sync enabled.`,
+                });
+              }
+              await refreshHealthConnection();
+            };
+
+            return (
+            <div className="bg-white p-8 rounded-2xl border border-line shadow-sm space-y-5">
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  {nativeHealthLabel}
+                </h3>
+                {healthLoading ? (
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 shrink-0">Checking…</span>
+                ) : !healthInfo?.available ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-widest shrink-0">
+                    Unavailable
+                  </span>
+                ) : isFullyConnected ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase tracking-widest shrink-0">
+                    <CheckCircle2 size={12} strokeWidth={2.5} aria-hidden />
+                    Connected
+                  </span>
+                ) : needsPermission ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold uppercase tracking-widest shrink-0">
+                    <AlertCircle size={12} strokeWidth={2.5} aria-hidden />
+                    Permission needed
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-widest shrink-0">
+                    Not connected
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-xl bg-brand-50 text-brand-600 shrink-0">
+                  <HeartPulse size={20} aria-hidden />
+                </div>
+                <div className="space-y-1 min-w-0">
+                  <p className="text-sm font-bold text-ink">
+                    {Capacitor.getPlatform() === 'ios'
+                      ? 'Sync weight to Apple Health'
+                      : `Sync weight to ${nativeHealthLabel}`}
+                  </p>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Connect once so Pivot can save body-mass samples when you log. Units follow your goal; Health stores kilograms.
+                  </p>
+                </div>
+              </div>
+
+              {!healthLoading && healthInfo?.available && !isFullyConnected && (
+                <button
+                  type="button"
+                  onClick={() => void handleHealthConnect()}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-brand-600 text-white text-sm font-bold hover:bg-brand-500 transition-colors active:scale-[0.99]"
+                >
+                  <Link2 size={18} aria-hidden />
+                  {Capacitor.getPlatform() === 'ios'
+                    ? 'Connect to Apple Health'
+                    : `Connect to ${nativeHealthLabel}`}
+                </button>
+              )}
+
+              {!healthLoading && healthInfo?.available && isFullyConnected && (
+                <p className="text-xs text-emerald-700 font-medium flex items-center gap-2">
+                  <CheckCircle2 size={16} className="shrink-0" aria-hidden />
+                  You&apos;re connected. New weight entries will appear in the Health app under Body Measurements.
+                </p>
+              )}
+
+              {!healthLoading && needsPermission && (
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                  {`Sync is on in Pivot, but this app doesn't have permission to write weight. Tap Connect above or enable Body Mass in Settings → Health → Data Access & Devices.`}
+                </p>
+              )}
+
+              <div className="flex items-center justify-between gap-4 pt-2 border-t border-line">
+                <div>
+                  <p className="text-sm font-bold text-ink">Save new logs to {nativeHealthLabel}</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mt-0.5">
+                    Off when disconnected
+                  </p>
                 </div>
                 <button
                   type="button"
-                  onClick={async () => {
-                    const next = !state.settings.syncToSystemHealth;
-                    if (next) {
-                      const granted = await onRequestSystemHealthAccess();
-                      if (!granted) {
-                        setStatus({
-                          type: "error",
-                          message: `Permission required to write to ${nativeHealthLabel}.`,
-                        });
-                        return;
-                      }
-                    }
-                    onUpdateSettings({ syncToSystemHealth: next });
-                    if (next) {
-                      setStatus({
-                        type: "success",
-                        message: `${nativeHealthLabel} sync enabled.`,
-                      });
-                    }
-                  }}
+                  onClick={() => void handleHealthSyncToggle()}
                   className={cn(
-                    "w-12 h-6 rounded-full transition-all relative shrink-0",
-                    state.settings.syncToSystemHealth
-                      ? "bg-brand-500"
-                      : "bg-slate-200",
+                    'w-12 h-6 rounded-full transition-all relative shrink-0',
+                    state.settings.syncToSystemHealth ? 'bg-brand-500' : 'bg-slate-200',
                   )}
                 >
                   <div
                     className={cn(
-                      "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
-                      state.settings.syncToSystemHealth ? "left-7" : "left-1",
+                      'absolute top-1 w-4 h-4 bg-white rounded-full transition-all',
+                      state.settings.syncToSystemHealth ? 'left-7' : 'left-1',
                     )}
                   />
                 </button>
               </div>
             </div>
-          )}
+            );
+          })()}
 
           <div className="bg-white p-8 rounded-2xl border border-line shadow-sm space-y-8">
             <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Notifications</h3>

@@ -8,6 +8,28 @@ export function isNativeHealthSupported(): boolean {
   return Capacitor.isNativePlatform();
 }
 
+export interface SystemHealthConnectionInfo {
+  available: boolean;
+  reason?: string;
+  writeAuthorized: boolean;
+}
+
+/** Current HealthKit / Health Connect availability and body-mass write permission (no prompt). */
+export async function getSystemHealthConnectionInfo(): Promise<SystemHealthConnectionInfo | null> {
+  if (!Capacitor.isNativePlatform()) return null;
+  const { available, reason } = await Health.isAvailable();
+  if (!available) {
+    return { available: false, reason, writeAuthorized: false };
+  }
+  const check = await Health.checkAuthorization({
+    write: ["weight"],
+  });
+  return {
+    available: true,
+    writeAuthorized: check.writeAuthorized.includes("weight"),
+  };
+}
+
 /** Prompts for HealthKit / Health Connect write access for body mass. */
 export async function requestSystemHealthWriteAccess(): Promise<boolean> {
   if (!Capacitor.isNativePlatform()) return false;
