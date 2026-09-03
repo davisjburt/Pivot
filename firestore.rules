@@ -88,6 +88,15 @@ service cloud.firestore {
              (!('note' in data) || (data.note is string && data.note.size() <= 500));
     }
 
+    function isValidReminderSubscription(data, userId) {
+      return data.keys().hasAll(['userId', 'subscription', 'time', 'timezone', 'remindersEnabled']) &&
+             data.userId == userId &&
+             data.subscription is map &&
+             data.time is string && data.time.matches("^\\d{2}:\\d{2}$") &&
+             data.timezone is string &&
+             data.remindersEnabled is bool;
+    }
+
     // ===============================================================
     // Match Rules
     // ===============================================================
@@ -104,17 +113,27 @@ service cloud.firestore {
 
       match /entries/{entryId} {
         allow read: if isOwner(userId) || isAdmin();
-        
+
         allow create: if isOwner(userId) && isValidWeightEntry(request.resource.data, userId);
-        
+
         allow update: if isOwner(userId) && isValidWeightEntry(request.resource.data, userId) &&
                         request.resource.data.id == resource.data.id &&
                         request.resource.data.uid == resource.data.uid;
-                        
+
         allow delete: if isOwner(userId) || isAdmin();
       }
     }
-    
+
+    match /reminderSubscriptions/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+
+      allow create: if isOwner(userId) && isValidReminderSubscription(request.resource.data, userId);
+
+      allow update: if isOwner(userId) && isValidReminderSubscription(request.resource.data, userId);
+
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
     // Default deny
     match /{path=**} {
       allow read, write: if false;
