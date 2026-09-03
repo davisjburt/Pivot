@@ -7,7 +7,21 @@ export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
     base: mode === "production" ? "./" : "/",
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      // WKWebView (Capacitor iOS) can fail to run module scripts when `crossorigin` is set on local assets.
+      ...(mode === "production"
+        ? [
+            {
+              name: "strip-crossorigin-for-native",
+              transformIndexHtml(html: string) {
+                return html.replace(/\s+crossorigin(?:="[^"]*")?/g, "");
+              },
+            },
+          ]
+        : []),
+    ],
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
