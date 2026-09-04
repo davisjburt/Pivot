@@ -6,5 +6,7 @@ coverage/
 *.log
 .env*
 !.env.example
+.dev.vars
+.wrangler/
 vapid.json
 subscriptions.json

@@ -20,7 +20,13 @@ import ReactECharts from 'echarts-for-react';
 import { AppState, WeightEntry, UserGoal, DEFAULT_TAGS, AppSettings } from './types';
 import { storageService } from './services/storage';
 import { analyticsService } from './services/analytics';
-import { firebaseService } from './services/firebaseService';
+import {
+  cloudflareService,
+  onAuthStateChanged,
+  signInWithGoogle,
+  signOut,
+  type CloudflareUser,
+} from './services/cloudflareService';
 import {
   isNativeHealthSupported,
   requestSystemHealthWriteAccess,
@@ -29,11 +35,10 @@ import {
   type SystemHealthConnectionInfo,
 } from './services/healthSync';
 import { Capacitor } from '@capacitor/core';
-import { auth, googleProvider, signInWithPopup, signOut, onAuthStateChanged, FirebaseUser } from './firebase';
 import { cn } from './lib/utils';
 
 export default function App() {
-  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [user, setUser] = useState<CloudflareUser | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [state, setState] = useState<AppState>({
     goal: null,
@@ -45,7 +50,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'insights' | 'settings'>('dashboard');
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
+    const unsubscribe = onAuthStateChanged((u) => {
       setUser(u);
       setIsAuthReady(true);
     });
@@ -65,7 +70,7 @@ export default function App() {
 
     // Load profile
     const loadProfile = async () => {
-      const profile = await firebaseService.getUserProfile(user.uid);
+      const profile = await cloudflareService.getUserProfile(user.uid);
       if (profile) {
         setState(prev => ({
           ...prev,
@@ -76,7 +81,7 @@ export default function App() {
         }));
       } else {
         // Create initial profile
-        await firebaseService.saveUserProfile(user.uid, {
+        await cloudflareService.saveUserProfile(user.uid, {
           uid: user.uid,
           email: user.email || '',
           name: user.displayName || '',
@@ -93,7 +98,7 @@ export default function App() {
     loadProfile();
 
     // Subscribe to entries
-    const unsubscribe = firebaseService.subscribeToEntries(user.uid, (entries) => {
+    const unsubscribe = cloudflareService.subscribeToEntries(user.uid, (entries) => {
       setState(prev => ({ ...prev, entries }));
     });
 
@@ -112,13 +117,13 @@ export default function App() {
     if (!user) return;
     const updates = { goal, onboarded: true };
     setState(prev => ({ ...prev, ...updates }));
-    await firebaseService.saveUserProfile(user.uid, updates);
+    await cloudflareService.saveUserProfile(user.uid, updates);
   };
 
   const addEntry = async (entry: Omit<WeightEntry, 'id'>) => {
     if (!user) return;
     const newEntry: WeightEntry = { ...entry, id: crypto.randomUUID() };
-    await firebaseService.addEntry(user.uid, newEntry);
+    await cloudflareService.addEntry(user.uid, newEntry);
     if (state.settings.syncToSystemHealth) {
       try {
         await saveLoggedWeightToSystemHealth(
@@ -135,49 +140,49 @@ export default function App() {
 
   const deleteEntry = async (id: string) => {
     if (!user) return;
-    await firebaseService.deleteEntry(user.uid, id);
+    await cloudflareService.deleteEntry(user.uid, id);
   };
 
   const updateSettings = async (settings: Partial<AppSettings>) => {
     if (!user) return;
     const newSettings = { ...state.settings, ...settings };
     setState(prev => ({ ...prev, settings: newSettings }));
-    await firebaseService.saveUserProfile(user.uid, { settings: newSettings });
+    await cloudflareService.saveUserProfile(user.uid, { settings: newSettings });
   };
 
   const updateGoal = async (goal: Partial<UserGoal>) => {
     if (!user) return;
     const newGoal = state.goal ? { ...state.goal, ...goal } : null;
     setState(prev => ({ ...prev, goal: newGoal }));
-    await firebaseService.saveUserProfile(user.uid, { goal: newGoal });
+    await cloudflareService.saveUserProfile(user.uid, { goal: newGoal });
   };
 
   const updateProfile = async (updates: Partial<AppState>) => {
     if (!user) return;
     setState(prev => ({ ...prev, ...updates }));
-    await firebaseService.saveUserProfile(user.uid, updates);
+    await cloudflareService.saveUserProfile(user.uid, updates);
   };
 
   const handleImportCsv = async (file: File) => {
     if (!user) return;
     const newEntries = await storageService.importCsv(file);
-    await firebaseService.importEntries(user.uid, newEntries);
+    await cloudflareService.importEntries(user.uid, newEntries);
   };
 
   const handleImportJson = async (file: File) => {
     if (!user) return;
     const data = await storageService.importData(file);
     // This is a full state import, we should be careful
-    await firebaseService.saveUserProfile(user.uid, {
+    await cloudflareService.saveUserProfile(user.uid, {
       goal: data.goal,
       onboarded: data.onboarded,
       settings: data.settings
     });
-    await firebaseService.importEntries(user.uid, data.entries);
+    await cloudflareService.importEntries(user.uid, data.entries);
   };
 
-  const handleSignOut = () => {
-    signOut(auth);
+  const handleSignOut = async () => {
+    await signOut();
   };
 
   if (!isAuthReady) {
@@ -216,7 +221,7 @@ export default function App() {
                 onRequestSystemHealthAccess={requestSystemHealthWriteAccess}
                 onReset={async () => {
                   if (confirm('Are you sure you want to reset all data? This cannot be undone.')) {
-                    await firebaseService.saveUserProfile(user.uid, { goal: null, onboarded: false, settings: { smoothingWindow: 10, hideRawNumbers: false, darkMode: false } });
+                    await cloudflareService.saveUserProfile(user.uid, { goal: null, onboarded: false, settings: { smoothingWindow: 10, hideRawNumbers: false, darkMode: false } });
                     // We'd also need to delete all entries, but for now let's just reset profile
                   }
                 }} 
@@ -246,15 +251,9 @@ export default function App() {
 function AuthView() {
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
+  const handleLogin = () => {
     setLoading(true);
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      console.error('Login failed', error);
-    } finally {
-      setLoading(false);
-    }
+    signInWithGoogle();
   };
 
   return (
@@ -293,7 +292,7 @@ function AuthView() {
               </>
             )}
           </button>
-          <p className="mt-6 text-[10px] text-slate-500 uppercase tracking-widest font-bold">Secure Authentication via Firebase</p>
+          <p className="mt-6 text-[10px] text-slate-500 uppercase tracking-widest font-bold">Secure authentication via Cloudflare</p>
         </div>
       </motion.div>
       </div>
@@ -1079,7 +1078,14 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
   const [remindersEnabled, setRemindersEnabled] = useState(state.settings.remindersEnabled || false);
   const [reminderTime, setReminderTime] = useState(state.settings.reminderTime || '08:00');
   const [pushSupported, setPushSupported] = useState('serviceWorker' in navigator && 'PushManager' in window);
-  const vapidConfigured = Boolean((import.meta as any).env?.VITE_VAPID_PUBLIC_KEY);
+  const [vapidPublicKey, setVapidPublicKey] = useState<string | null>(null);
+  const vapidConfigured = Boolean(vapidPublicKey);
+
+  useEffect(() => {
+    void cloudflareService.getVapidPublicKey()
+      .then(setVapidPublicKey)
+      .catch((error) => console.error('Unable to load the VAPID public key', error));
+  }, []);
 
   const refreshHealthConnection = useCallback(async () => {
     if (!showSystemHealthSync) return;
@@ -1110,7 +1116,7 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
 
   const handleToggleReminders = async (enabled: boolean) => {
     if (!vapidConfigured) {
-      alert("Reminders are not configured for this deployment yet. Missing VITE_VAPID_PUBLIC_KEY in build environment.");
+      alert("Reminders are not configured for this deployment yet. Add the VAPID keys to the Cloudflare Worker.");
       return;
     }
 
@@ -1144,10 +1150,8 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
         const registration = await navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
         const activeRegistration = await navigator.serviceWorker.ready;
 
-        const vapidPublicKey = (import.meta as any).env?.VITE_VAPID_PUBLIC_KEY?.trim();
-        
         if (!vapidPublicKey) {
-          throw new Error('Missing VITE_VAPID_PUBLIC_KEY. Add it to your build environment for static hosting.');
+          throw new Error('The Cloudflare Worker has no VAPID public key configured.');
         }
 
         const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
@@ -1163,7 +1167,7 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
           applicationServerKey: convertedVapidKey
         });
 
-        await firebaseService.saveReminderSubscription(state.uid || 'anonymous', {
+        await cloudflareService.saveReminderSubscription(state.uid || 'anonymous', {
           subscription: subscription.toJSON(),
           time: reminderTime,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -1172,7 +1176,7 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
 
         setRemindersEnabled(true);
         onUpdateSettings({ ...state.settings, remindersEnabled: true, reminderTime });
-        setStatus({ type: 'success', message: 'Reminders enabled! Sent via GitHub Actions scheduler.' });
+        setStatus({ type: 'success', message: 'Reminders enabled! Cloudflare will deliver them on schedule.' });
       } catch (error: any) {
         console.error("Error enabling reminders:", error);
         alert(`Failed to enable reminders: ${error.message || error}`);
@@ -1186,7 +1190,7 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
           await subscription.unsubscribe();
         }
         
-        await firebaseService.deleteReminderSubscription(state.uid || 'anonymous');
+        await cloudflareService.deleteReminderSubscription(state.uid || 'anonymous');
 
         setRemindersEnabled(false);
         onUpdateSettings({ ...state.settings, remindersEnabled: false });
@@ -1211,7 +1215,7 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
     try {
       setStatus({
         type: 'success',
-        message: 'Use the GitHub Actions workflow dispatch to send a test reminder.'
+        message: 'Reminder delivery is managed by the Cloudflare scheduled Worker.'
       });
     } catch (error) {
       console.error("Error sending test notification:", error);
@@ -1592,7 +1596,7 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
               )}
               {!vapidConfigured && (
                 <p className="text-xs text-amber-600 bg-amber-50 p-3 rounded-xl border border-amber-100">
-                  Reminders are not configured for this deployment. Add the <span className="font-bold">VAPID_PUBLIC_KEY</span> GitHub secret so the build can set <span className="font-bold">VITE_VAPID_PUBLIC_KEY</span>.
+                  Reminders are not configured for this deployment. Set <span className="font-bold">VAPID_PUBLIC_KEY</span> and <span className="font-bold">VAPID_PRIVATE_KEY</span> on the Cloudflare Worker.
                 </p>
               )}
             </div>

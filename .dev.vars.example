@@ -1,0 +1,6 @@
+# Copy to .dev.vars for local Worker development. Never commit real values.
+GOOGLE_CLIENT_ID="replace-me.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET="replace-me"
+VAPID_PUBLIC_KEY="replace-me"
+VAPID_PRIVATE_KEY="replace-me"
+VAPID_SUBJECT="mailto:you@example.com"

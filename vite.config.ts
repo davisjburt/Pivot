@@ -1,4 +1,5 @@
 import tailwindcss from '@tailwindcss/vite';
+import { cloudflare } from '@cloudflare/vite-plugin';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig, loadEnv} from 'vite';
@@ -8,6 +9,7 @@ export default defineConfig(({mode}) => {
   return {
     base: mode === "production" ? "./" : "/",
     plugins: [
+      cloudflare(),
       react(),
       tailwindcss(),
       // WKWebView (Capacitor iOS) can fail to run module scripts when `crossorigin` is set on local assets.
@@ -29,6 +31,11 @@ export default defineConfig(({mode}) => {
       alias: {
         '@': path.resolve(__dirname, '.'),
       },
+    },
+    optimizeDeps: {
+      // Only crawl the web app entry. Capacitor's copied bundle under ios/ is build output,
+      // not source, and may reference dependencies that were already bundled.
+      entries: ['index.html'],
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
