@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-04T00:00:00Z",
+  "title": "Design System: Pivot",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Instrument Blue",
+        "canonical": "#1e40af",
+        "tonalRamp": ["#030712", "#111827", "#172554", "#1e3a8a", "#1e40af", "#389df8", "#7cc2fc", "#bae0fd", "#e0effe", "#f0f7ff"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#0f172a",
+        "tonalRamp": ["#0f172a", "#1e293b", "#334155", "#475569", "#64748b", "#94a3b8", "#cbd5e1", "#e2e8f0", "#f1f5f9", "#f8fafc"],
+        "note": "Full slate ramp. Light mode reads this ramp light-to-dark (paper -> ink); dark mode reads it dark-to-light (per The Mirror Rule in DESIGN.md)."
+      },
+      "success": {
+        "role": "state",
+        "displayName": "Connected Green",
+        "canonical": "#059669",
+        "tonalRamp": ["#064e3b", "#065f46", "#047857", "#059669", "#10b981", "#34d399", "#6ee7b7", "#a7f3d0", "#d1fae5", "#ecfdf5"]
+      },
+      "warning": {
+        "role": "state",
+        "displayName": "Attention Amber",
+        "canonical": "#d97706",
+        "tonalRamp": ["#78350f", "#92400e", "#b45309", "#d97706", "#f59e0b", "#fbbf24", "#fcd34d", "#fde68a", "#fef3c7", "#fffbeb"]
+      },
+      "danger": {
+        "role": "state",
+        "displayName": "Destructive Red",
+        "canonical": "#dc2626",
+        "tonalRamp": ["#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#ef4444", "#f87171", "#fca5a5", "#fecaca", "#fee2e2", "#fef2f2"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display (Space Grotesk)", "purpose": "Screen titles and the wordmark. Never used for numerals." },
+      "numeral": { "displayName": "Numeral (Inter Black)", "purpose": "The one number or word per screen that carries a decision or commitment." },
+      "label": { "displayName": "Eyebrow Label", "purpose": "9-10px bold uppercase wide-tracked micro-caption used everywhere instead of visible section chrome." },
+      "body": { "displayName": "Body (Inter)", "purpose": "Descriptions, helper copy, list content." }
+    },
+    "shadows": [
+      { "name": "resting", "value": "0 1px 2px rgba(0,0,0,0.05)", "purpose": "Default for every card, list container, and chart panel (shadow-sm)." },
+      { "name": "commitment", "value": "0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)", "purpose": "Primary CTAs, the app shell, and modal sheets (shadow-xl/2xl)." },
+      { "name": "commitment-tinted", "value": "0 20px 25px -5px rgba(30,64,175,0.25)", "purpose": "Same escalation as commitment, but under brand-blue elements (sign-in button, hero icon badge) for a soft blue glow instead of neutral black." }
+    ],
+    "motion": [
+      { "name": "press", "value": "transform 0.15s ease; active:scale(0.95)", "purpose": "Every tappable primary/icon control compresses slightly on press." },
+      { "name": "sheet-spring", "value": "spring(damping: 25, stiffness: 200)", "purpose": "Bottom-sheet modals (Log Weight) slide up with physical spring motion, not an ease curve." }
+    ],
+    "breakpoints": [
+      { "name": "shell-max", "value": "448px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Full-width primary call to action (e.g. Save Entry). Black-weight label, press-scale feedback.",
+      "html": "<button class=\"ds-btn-primary\">Save Entry</button>",
+      "css": ".ds-btn-primary { background: var(--color-brand-500, #1e40af); color: #fff; font-weight: 900; font-size: 18px; padding: 20px 24px; width: 100%; border: none; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(30,64,175,0.15); transition: background 0.2s, transform 0.15s; } .ds-btn-primary:hover { background: var(--color-brand-600, #1e3a8a); } .ds-btn-primary:focus-visible { outline: 2px solid var(--color-brand-500, #1e40af); outline-offset: 2px; } .ds-btn-primary:active { transform: scale(0.98); } .ds-btn-primary:disabled { opacity: 0.5; }"
+    },
+    {
+      "name": "Tag Chip",
+      "kind": "chip",
+      "refersTo": "chip-tag-selected",
+      "description": "Toggleable context tag (e.g. 'High Sodium') shown in the Log Weight sheet. Selected and unselected states shown together.",
+      "html": "<div style=\"display:flex; gap:8px; flex-wrap:wrap;\"><button class=\"ds-chip ds-chip--selected\">High Sodium</button><button class=\"ds-chip\">Travel</button></div>",
+      "css": ".ds-chip { padding: 10px 16px; border-radius: 16px; font-weight: 700; font-size: 14px; border: none; background: var(--theme-surface-active, #f1f5f9); color: var(--theme-text-secondary, #64748b); transition: all 0.2s; } .ds-chip:hover { background: var(--theme-surface-hover, #f8fafc); } .ds-chip:active { transform: scale(0.95); } .ds-chip--selected { background: var(--color-brand-500, #1e40af); color: #fff; box-shadow: 0 4px 12px rgba(30,64,175,0.2); }"
+    },
+    {
+      "name": "Stat Card",
+      "kind": "card",
+      "refersTo": "stat-card",
+      "description": "Dashboard metric tile: eyebrow label, large bold value, muted unit, optional trend subvalue.",
+      "html": "<div class=\"ds-stat-card\"><p class=\"ds-stat-card__label\">Today's Weight</p><div class=\"ds-stat-card__value-row\"><h4 class=\"ds-stat-card__value\">178.4</h4><span class=\"ds-stat-card__unit\">lbs</span></div><p class=\"ds-stat-card__sub\">Trend: 179.1</p></div>",
+      "css": ".ds-stat-card { background: var(--theme-surface, #fff); padding: 24px; border-radius: 16px; border: 1px solid var(--theme-line, #e2e8f0); box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: flex; flex-direction: column; justify-content: space-between; } .ds-stat-card__label { color: var(--theme-text-muted, #94a3b8); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; } .ds-stat-card__value-row { display: flex; align-items: baseline; gap: 4px; } .ds-stat-card__value { color: var(--theme-ink, #0f172a); font-size: 30px; font-weight: 700; letter-spacing: -0.02em; margin: 0; } .ds-stat-card__unit { color: var(--theme-text-muted, #94a3b8); font-size: 14px; font-weight: 500; } .ds-stat-card__sub { color: var(--theme-text-secondary, #64748b); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 16px; }"
+    },
+    {
+      "name": "Floating Nav Action",
+      "kind": "nav",
+      "refersTo": "nav-fab",
+      "description": "The bottom tab bar's centered '+' floating action button, breaking the bar's top edge.",
+      "html": "<button class=\"ds-nav-fab\" aria-label=\"Log weight\"><svg width=\"28\" height=\"28\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\"><path d=\"M12 5v14M5 12h14\"/></svg></button>",
+      "css": ".ds-nav-fab { width: 56px; height: 56px; border-radius: 9999px; background: var(--color-brand-500, #1e40af); color: #fff; display: flex; align-items: center; justify-content: center; border: 4px solid var(--theme-paper, #f8fafc); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.15); margin-top: -40px; transition: transform 0.15s; } .ds-nav-fab:active { transform: scale(0.95); }"
+    },
+    {
+      "name": "Status Pill",
+      "kind": "chip",
+      "refersTo": "status-pill",
+      "description": "Small rounded state badge (health-sync connected/warning/neutral), icon + eyebrow-style label.",
+      "html": "<span class=\"ds-status-pill ds-status-pill--success\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8.5 12.5l2.5 2.5 4.5-5\"/></svg>Connected</span>",
+      "css": ".ds-status-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; } .ds-status-pill--success { background: var(--theme-emerald-50, #ecfdf5); color: #047857; } .ds-status-pill--warning { background: var(--theme-amber-50, #fffbeb); color: var(--theme-amber-900, #78350f); } .ds-status-pill--neutral { background: var(--theme-surface-active, #f1f5f9); color: var(--theme-text-secondary, #64748b); }"
+    },
+    {
+      "name": "Toggle Switch",
+      "kind": "input",
+      "refersTo": "toggle-switch",
+      "description": "Boolean setting control (e.g. Dark Mode). The system's only form of checkbox.",
+      "html": "<button class=\"ds-toggle ds-toggle--on\"><span class=\"ds-toggle__thumb\"></span></button>",
+      "css": ".ds-toggle { width: 48px; height: 24px; border-radius: 9999px; border: none; position: relative; background: var(--theme-line, #e2e8f0); transition: background 0.2s; } .ds-toggle--on { background: var(--color-brand-500, #1e40af); } .ds-toggle__thumb { position: absolute; top: 4px; left: 4px; width: 16px; height: 16px; border-radius: 9999px; background: #fff; transition: left 0.2s; } .ds-toggle--on .ds-toggle__thumb { left: 28px; }"
+    },
+    {
+      "name": "Hero Numeral Input",
+      "kind": "input",
+      "refersTo": "hero-numeral-input",
+      "description": "Signature component: the weight-entry field in the Log Weight sheet. No visible field chrome, just a giant editable numeral.",
+      "html": "<div class=\"ds-hero-input\"><input class=\"ds-hero-input__field\" type=\"number\" step=\"0.1\" placeholder=\"0.0\" /><span class=\"ds-hero-input__unit\">lbs</span></div>",
+      "css": ".ds-hero-input { display: flex; align-items: baseline; justify-content: center; gap: 8px; } .ds-hero-input__field { font-size: 60px; font-weight: 900; color: var(--color-brand-600, #1e3a8a); width: 192px; text-align: center; background: transparent; border: none; outline: none; } .ds-hero-input__unit { font-size: 24px; font-weight: 700; color: var(--theme-text-muted, #94a3b8); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Quiet Clinician",
+    "overview": "Pivot reads like a discreet, precise health companion, never a hospital dashboard and never a leaderboard. One instrument-blue accent (#1e40af) carries every action and every moment that matters; everything else recedes into a slate neutral scale that is calm at rest and only ever raises its voice for a genuine warning (amber) or a destructive action (red). The interface is confident about hierarchy — a single giant, 900-weight numeral commands each screen — but restrained about ornament: flat white cards, soft single-direction shadows, and generous rounded corners instead of borders, gradients, or texture. The density is mobile-first and unapologetically single-column: every surface is built inside a fixed, phone-width frame (max 448px) with a bottom tab bar and a floating action button, even when viewed on desktop. Motion is physical rather than decorative — spring-damped sheets, active:scale-95 presses — which reinforces the 'instrument you hold' feeling rather than a 'page you browse.' Data visualization (the trend chart) is intentionally the quietest element on the Dashboard: a thin, low-opacity area fill with no gridlines beyond a faint horizontal rule, so the number above it stays the hero. Confirmed anti-reference: gamified fitness apps. Pivot already celebrates streaks and milestones, but never with badges, leaderboards, confetti, or streak-shaming language — celebration stays inside the same calm, single-accent vocabulary as everything else.",
+    "keyCharacteristics": [
+      "One true accent hue (instrument blue); every other color is neutral or reserved for state (success/warning/danger)",
+      "A single 900-weight 'black' numeral or word per moment of commitment — brand mark, hero reading, primary action",
+      "Tiny, bold, uppercase, wide-tracked 'eyebrow' labels used everywhere instead of visible section chrome",
+      "Flat cards with soft shadows and no borders-as-decoration; shadow weight itself signals importance",
+      "Mobile-app shell (fixed phone frame, bottom nav, floating action button) regardless of viewport",
+      "Physical motion: spring sheets, scale-press feedback, no gratuitous decorative animation"
+    ],
+    "rules": [
+      { "name": "The One Voice Rule", "body": "There is exactly one accent hue in this system. A second 'brand' color is never introduced; new emphasis is expressed through the blue ramp's weight (50→900), not a new hue.", "section": "colors" },
+      { "name": "The Mirror Rule", "body": "Light mode and dark mode are the same neutral (slate) ramp, just read in opposite directions. A new neutral token must define both ends of its own mirror; never hand-pick an unrelated dark-mode color.", "section": "colors" },
+      { "name": "The State-Only Rule", "body": "Success, warning, and danger colors appear only attached to a real system state — never as page decoration, never to differentiate content that isn't actually in that state.", "section": "colors" },
+      { "name": "The Black Weight Rule", "body": "Font-weight 900 is reserved for text that carries a decision or a commitment: the brand mark, a hero reading, a milestone numeral, or a primary action's own label. Never used for supporting copy, however short.", "section": "typography" },
+      { "name": "The Eyebrow Rule", "body": "Any secondary or contextual label is set at 9-10px, bold, uppercase, and wide-tracked (letter-spacing 0.1em+). This is the system's substitute for visible chrome — the label itself does that job.", "section": "typography" },
+      { "name": "The Escalation Rule", "body": "Shadow depth tracks importance, not surface type. A card doesn't get heavier shadow because it's 'raised' — it gets heavier shadow because pressing it (or being it) is the most important thing on screen.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep exactly one accent hue. New emphasis is a weight or shade change on Instrument Blue, never a second brand color.",
+      "Do reserve font-weight 900 for numerals and words that represent a decision or commitment.",
+      "Do use the 9-10px bold-uppercase-wide-tracked label style for any new secondary/contextual text instead of inventing a new caption style.",
+      "Do let shadow weight communicate importance — a new primary action earns shadow-xl, not just a slightly darker shadow-sm.",
+      "Do register both light- and dark-mode values for any new neutral token, mirrored from the existing slate ramp, before using it anywhere.",
+      "Do keep celebratory/streak moments inside the existing calm vocabulary — a quiet amber banner with the eyebrow label style, not a badge, confetti, or a new visual language."
+    ],
+    "donts": [
+      "Don't introduce a second accent color, even for a 'special' feature — extend the existing blue ramp or use a state color instead.",
+      "Don't add a new destructive- or status-colored utility class without a matching --theme-* variable pair. Several existing classes (red-100, red-500, red-700, emerald-700) were used directly from Tailwind's default palette without a light/dark override and will render wrong in dark mode — don't repeat that gap.",
+      "Don't add gamification chrome (badges, leaderboards, confetti, 'you beat 87% of users' comparisons) — it's the system's explicit anti-reference.",
+      "Don't give a card heavier elevation than shadow-sm unless it is genuinely the primary action or the whole app shell.",
+      "Don't use a bordered/outlined input style — every field in this system is filled, with focus communicated by a ring, not a border-color change."
+    ]
+  }
+}
