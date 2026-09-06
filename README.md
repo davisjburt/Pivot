@@ -8,7 +8,7 @@ Prerequisites: Node.js 22+, a Google OAuth web client, and a VAPID key pair if y
 
 1. Install dependencies with `npm install`.
 2. Copy `.dev.vars.example` to `.dev.vars` and add your local credentials.
-3. Add `http://localhost:5173/api/auth/callback` to the Google client's authorized redirect URIs.
+3. Add `http://localhost:5173/api/auth/callback` to the Google client's authorized redirect URIs, and open the app via `http://localhost:5173` rather than a LAN IP — Google rejects private-IP callbacks such as `10.x.x.x`. If you need to test from another device on your network, set `OAUTH_REDIRECT_ORIGIN` in `.dev.vars` to the origin registered with Google and access the app through a tunnel (e.g. `cloudflared` or `ngrok`) pointed at that origin instead.
 4. Create the local database with `npm run cf:migrate:local`.
 5. Start the integrated React + Worker server with `npm run dev`.
 

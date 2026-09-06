@@ -7,6 +7,7 @@ import {
 type WorkerEnv = Env & {
   GOOGLE_CLIENT_SECRET: string;
   VAPID_PRIVATE_KEY: string;
+  OAUTH_REDIRECT_ORIGIN?: string;
 };
 
 type SessionUserRow = {
@@ -129,6 +130,20 @@ async function constantTimeEqual(left: string, right: string): Promise<boolean> 
 
 function safeReturnTo(value: string | null): string {
   return value?.startsWith('/') && !value.startsWith('//') ? value : '/';
+}
+
+function oauthOrigin(env: WorkerEnv, requestUrl: URL): string {
+  const configured = env.OAUTH_REDIRECT_ORIGIN?.trim();
+  if (!configured) return requestUrl.origin;
+  try {
+    const url = new URL(configured);
+    if ((url.protocol === 'http:' || url.protocol === 'https:') && url.pathname === '/' && !url.search && !url.hash) {
+      return url.origin;
+    }
+  } catch {
+    // Return a configuration error below rather than exposing an invalid redirect URL to Google.
+  }
+  throw new HttpError(500, 'OAUTH_REDIRECT_ORIGIN must be an http(s) origin without a path');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -263,9 +278,15 @@ function publicUser(user: SessionUserRow) {
 
 async function beginGoogleAuth(request: Request, env: WorkerEnv, url: URL): Promise<Response> {
   if (!env.GOOGLE_CLIENT_ID) throw new HttpError(503, 'Google OAuth is not configured');
+  const canonicalOrigin = oauthOrigin(env, url);
+  if (url.origin !== canonicalOrigin) {
+    const canonicalUrl = new URL('/api/auth/google', canonicalOrigin);
+    canonicalUrl.searchParams.set('returnTo', safeReturnTo(url.searchParams.get('returnTo')));
+    return Response.redirect(canonicalUrl, 302);
+  }
   const state = randomToken();
   const returnTo = safeReturnTo(url.searchParams.get('returnTo'));
-  const redirectUri = `${url.origin}/api/auth/callback`;
+  const redirectUri = `${canonicalOrigin}/api/auth/callback`;
   const authorizationUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   authorizationUrl.search = new URLSearchParams({
     client_id: env.GOOGLE_CLIENT_ID,
@@ -294,7 +315,7 @@ async function completeGoogleAuth(request: Request, env: WorkerEnv, url: URL): P
     throw new HttpError(503, 'Google OAuth is not configured');
   }
 
-  const redirectUri = `${url.origin}/api/auth/callback`;
+  const redirectUri = `${oauthOrigin(env, url)}/api/auth/callback`;
   const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

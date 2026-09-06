@@ -19,6 +19,7 @@
   ],
   "vars": {
     "GOOGLE_CLIENT_ID": "",
+    "OAUTH_REDIRECT_ORIGIN": "",
     "VAPID_PUBLIC_KEY": "",
     "VAPID_SUBJECT": "mailto:reminders@example.com"
   },
