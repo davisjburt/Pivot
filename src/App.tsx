@@ -143,22 +143,37 @@ export default function App() {
 
   useEffect(() => {
     const statusBarMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-    const themeColorMeta = document.querySelector('meta[name="theme-color"]');
-    if (state.settings?.darkMode) {
-      document.documentElement.classList.add('dark');
+
+    const applyTheme = (dark: boolean) => {
+      document.documentElement.classList.toggle('dark', dark);
       // iOS only offers opaque bar styles with dark icons ("default") or a
       // translucent/black bar with light icons — there's no "translucent
       // with dark icons" option, so dark mode has to go translucent to get
       // icons that read against the app's dark background, while light mode
       // stays on the opaque default bar that already matches its cream tone.
-      statusBarMeta?.setAttribute('content', 'black-translucent');
-      themeColorMeta?.setAttribute('content', '#0c1424');
-    } else {
-      document.documentElement.classList.remove('dark');
-      statusBarMeta?.setAttribute('content', 'default');
-      themeColorMeta?.setAttribute('content', '#f5f1e4');
+      // This live update is best-effort only: iOS bakes this tag into an
+      // installed PWA shell at add-to-Home-Screen time and does not
+      // reliably re-read it afterward. The pivot_theme cookie set below is
+      // what actually fixes it — the Worker reads it and bakes the correct
+      // value into the HTML server-side before the next fresh install.
+      statusBarMeta?.setAttribute('content', dark ? 'black-translucent' : 'default');
+      const secureAttr = location.protocol === 'https:' ? '; Secure' : '';
+      document.cookie = `pivot_theme=${dark ? 'dark' : 'light'}; path=/; max-age=31536000; SameSite=Lax${secureAttr}`;
+    };
+
+    if (user) {
+      applyTheme(!!state.settings?.darkMode);
+      return;
     }
-  }, [state.settings?.darkMode]);
+
+    // Signed out (e.g. the sign-in screen): there's no stored preference to
+    // read yet, so follow the device's own setting instead of forcing light.
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    applyTheme(media.matches);
+    const onChange = (e: MediaQueryListEvent) => applyTheme(e.matches);
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
+  }, [user, state.settings?.darkMode]);
 
   const handleOnboard = async (goal: UserGoal) => {
     if (!user) return;

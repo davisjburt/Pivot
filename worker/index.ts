@@ -577,10 +577,37 @@ async function dispatchReminders(env: WorkerEnv, now: Date): Promise<void> {
   }
 }
 
+const STATUS_BAR_STYLE_PATTERN = /(<meta\s+name="apple-mobile-web-app-status-bar-style"\s+content=")[^"]*(")/;
+
+// The document itself is routed through the Worker (see wrangler.jsonc
+// run_worker_first) so this can bake the right iOS status-bar style into
+// the HTML before it ever reaches the device. iOS caches
+// apple-mobile-web-app-status-bar-style into the installed PWA shell at
+// add-to-Home-Screen time and does not reliably honor a later live JS
+// change, so it has to be correct in the response body itself, not just
+// patched by client-side script after load. The pivot_theme cookie (kept
+// in sync client-side: from the account setting when signed in, from
+// prefers-color-scheme when signed out) is what makes this per-visitor
+// instead of one value for every installer.
+async function serveDocument(request: Request, env: WorkerEnv): Promise<Response> {
+  const response = await env.ASSETS.fetch(request);
+  const contentType = response.headers.get('Content-Type') ?? '';
+  if (!contentType.includes('text/html')) return response;
+
+  const theme = parseCookies(request).get('pivot_theme') === 'dark' ? 'dark' : 'light';
+  const statusBarStyle = theme === 'dark' ? 'black-translucent' : 'default';
+  const html = (await response.text()).replace(STATUS_BAR_STYLE_PATTERN, `$1${statusBarStyle}$2`);
+
+  const headers = new Headers(response.headers);
+  headers.delete('Content-Length');
+  return new Response(html, { status: response.status, statusText: response.statusText, headers });
+}
+
 async function route(request: Request, env: WorkerEnv): Promise<Response> {
   const url = new URL(request.url);
   const { pathname } = url;
 
+  if (request.method === 'GET' && pathname === '/') return serveDocument(request, env);
   if (request.method === 'GET' && pathname === '/api/auth/google') return beginGoogleAuth(request, env, url);
   if (request.method === 'GET' && pathname === '/api/auth/callback') return completeGoogleAuth(request, env, url);
   if (request.method === 'GET' && pathname === '/api/auth/me') {

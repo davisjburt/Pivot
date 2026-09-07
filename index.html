@@ -3,9 +3,30 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#f5f1e4" />
+    <!--
+      theme-color supports per-visitor auto-matching via the media
+      attribute (the browser picks whichever matches the device's own
+      light/dark setting, no JS needed) — so this one is correct for
+      everyone automatically.
+    -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f5f1e4" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0c1424" />
+    <!--
+      apple-mobile-web-app-status-bar-style has no such media-query support
+      and no per-visitor value: it is one static tag iOS bakes into the
+      installed PWA shell at add-to-Home-Screen time, and it does not
+      reliably honor a later live JS change either (confirmed on-device,
+      clean reinstall included). One value has to serve every installer, so
+      this is pinned to dark mode per the product owner's stated
+      preference; anyone who installs and prefers light mode will see a
+      mismatched status bar with no in-app fix available. See the dark-mode
+      effect in App.tsx for the (best-effort, not fully reliable) live
+      toggle attempt. A real per-visitor fix would mean routing the root
+      document through the Worker to inject this tag server-side from a
+      stored preference, instead of serving it as a static asset.
+    -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
