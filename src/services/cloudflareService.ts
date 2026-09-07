@@ -99,10 +99,18 @@ export const cloudflareService = {
     entrySubscribers.add(callback);
     void refreshEntries().catch((error) => console.error('Unable to load entries', error));
     const interval = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
       void refreshEntries().catch((error) => console.error('Unable to refresh entries', error));
     }, 30_000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshEntries().catch((error) => console.error('Unable to refresh entries', error));
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
       entrySubscribers.delete(callback);
     };
   },

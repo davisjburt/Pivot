@@ -205,7 +205,7 @@ export default function App() {
         <main className="flex-1 overflow-y-auto p-6 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-32 no-scrollbar">
           <AnimatePresence mode="wait">
             {activeTab === 'dashboard' && <Dashboard state={state} onLogClick={() => setIsLogging(true)} />}
-            {activeTab === 'history' && <HistoryView entries={state.entries} onDelete={deleteEntry} unit={state.goal?.unit || 'lbs'} />}
+            {activeTab === 'history' && <HistoryView entries={state.entries} onDelete={deleteEntry} unit={state.goal?.unit || 'lbs'} hideRawNumbers={state.settings.hideRawNumbers} />}
             {activeTab === 'insights' && <InsightsView state={state} />}
             {activeTab === 'settings' && (
               <SettingsView 
@@ -220,11 +220,11 @@ export default function App() {
                 showSystemHealthSync={isNativeHealthSupported()}
                 onRequestSystemHealthAccess={requestSystemHealthWriteAccess}
                 onReset={async () => {
-                  if (confirm('Are you sure you want to reset all data? This cannot be undone.')) {
+                  if (confirm('Are you sure you want to reset all data? This deletes every logged entry and cannot be undone.')) {
+                    await Promise.all(state.entries.map(entry => cloudflareService.deleteEntry(user.uid, entry.id)));
                     await cloudflareService.saveUserProfile(user.uid, { goal: null, onboarded: false, settings: { smoothingWindow: 10, hideRawNumbers: false, darkMode: false } });
-                    // We'd also need to delete all entries, but for now let's just reset profile
                   }
-                }} 
+                }}
                 onSignOut={handleSignOut}
               />
             )}
@@ -233,11 +233,11 @@ export default function App() {
 
         {/* Mobile Nav */}
         <nav className="absolute bottom-0 left-0 right-0 bg-white border-t border-line px-6 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] flex justify-between items-center z-50">
-          <MobileNavLink active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<Home size={24} />} />
-          <MobileNavLink active={activeTab === 'history'} onClick={() => setActiveTab('history')} icon={<History size={24} />} />
-          <button onClick={() => setIsLogging(true)} className="w-14 h-14 bg-brand-500 rounded-full flex items-center justify-center text-white shadow-lg -mt-10 border-4 border-paper active:scale-95 transition-transform"><Plus size={28} /></button>
-          <MobileNavLink active={activeTab === 'insights'} onClick={() => setActiveTab('insights')} icon={<Info size={24} />} />
-          <MobileNavLink active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<SettingsIcon size={24} />} />
+          <MobileNavLink active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<Home size={24} />} label="Dashboard" />
+          <MobileNavLink active={activeTab === 'history'} onClick={() => setActiveTab('history')} icon={<History size={24} />} label="History" />
+          <button onClick={() => setIsLogging(true)} aria-label="Log weight" className="w-14 h-14 bg-brand-500 rounded-full flex items-center justify-center text-white shadow-lg -mt-10 border-4 border-paper active:scale-95 transition-transform"><Plus size={28} /></button>
+          <MobileNavLink active={activeTab === 'insights'} onClick={() => setActiveTab('insights')} icon={<Info size={24} />} label="Insights" />
+          <MobileNavLink active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<SettingsIcon size={24} />} label="Settings" />
         </nav>
 
         <AnimatePresence>
@@ -301,10 +301,12 @@ function AuthView() {
 }
 
 
-function MobileNavLink({ active, onClick, icon }: any) {
+function MobileNavLink({ active, onClick, icon, label }: any) {
   return (
-    <button 
-      onClick={onClick} 
+    <button
+      onClick={onClick}
+      aria-label={label}
+      aria-current={active ? 'page' : undefined}
       className={cn(
         "flex-1 flex flex-col items-center justify-center py-2 transition-all active:scale-90",
         active ? "text-brand-600" : "text-slate-400"
@@ -541,7 +543,7 @@ function StatCard({ label, value, unit, subValue, trend }: any) {
       {subValue && (
         <div className="mt-4 flex items-center gap-2">
           {trend === 'down' && <TrendingDown size={14} className="text-brand-600" />}
-          {trend === 'up' && <TrendingUp size={14} className="text-red-500" />}
+          {trend === 'up' && <TrendingUp size={14} className="text-red-600" />}
           <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">{subValue}</p>
         </div>
       )}
@@ -549,7 +551,22 @@ function StatCard({ label, value, unit, subValue, trend }: any) {
   );
 }
 
-function HistoryView({ entries, onDelete, unit }: { entries: WeightEntry[], onDelete: (id: string) => void, unit: string }) {
+function HistoryView({ entries, onDelete, unit, hideRawNumbers }: { entries: WeightEntry[], onDelete: (id: string) => void, unit: string, hideRawNumbers?: boolean }) {
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const confirmTimeoutRef = React.useRef<number | null>(null);
+
+  const handleDeleteClick = (id: string) => {
+    if (confirmingId === id) {
+      if (confirmTimeoutRef.current) window.clearTimeout(confirmTimeoutRef.current);
+      setConfirmingId(null);
+      onDelete(id);
+      return;
+    }
+    if (confirmTimeoutRef.current) window.clearTimeout(confirmTimeoutRef.current);
+    setConfirmingId(id);
+    confirmTimeoutRef.current = window.setTimeout(() => setConfirmingId(null), 3000);
+  };
+
   // 1. Sort ascending to calculate entry-to-entry deltas
   const sortedAsc = [...entries].sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
   
@@ -612,8 +629,10 @@ function HistoryView({ entries, onDelete, unit }: { entries: WeightEntry[], onDe
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                     Week of {format(week.weekStart, 'MMM d, yyyy')}
                   </span>
-                  {week.delta !== 0 ? (
-                    <div className={cn("flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest", week.delta > 0 ? "text-amber-500" : "text-brand-500")}>
+                  {hideRawNumbers ? (
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Hidden</div>
+                  ) : week.delta !== 0 ? (
+                    <div className={cn("flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest", week.delta > 0 ? "text-amber-600" : "text-brand-600")}>
                       {week.delta > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                       {Math.abs(week.delta).toFixed(1)} {unit}
                     </div>
@@ -644,20 +663,24 @@ function HistoryView({ entries, onDelete, unit }: { entries: WeightEntry[], onDe
                       <div className="flex items-center gap-4">
                         <div className="flex flex-col items-end">
                           <div className="text-lg font-bold text-ink text-right">
-                            {entry.weight.toFixed(1)} <span className="text-slate-400 font-normal text-sm">{unit}</span>
+                            {hideRawNumbers ? '—' : <>{entry.weight.toFixed(1)} <span className="text-slate-400 font-normal text-sm">{unit}</span></>}
                           </div>
-                          {entry.delta !== 0 && (
-                            <div className={cn("flex items-center gap-0.5 text-[10px] font-bold mt-0.5", entry.delta > 0 ? "text-amber-500" : "text-brand-500")}>
+                          {!hideRawNumbers && entry.delta !== 0 && (
+                            <div className={cn("flex items-center gap-0.5 text-[10px] font-bold mt-0.5", entry.delta > 0 ? "text-amber-600" : "text-brand-600")}>
                               {entry.delta > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                               {Math.abs(entry.delta).toFixed(1)}
                             </div>
                           )}
                         </div>
-                        <button 
-                          onClick={() => onDelete(entry.id)} 
-                          className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        <button
+                          onClick={() => handleDeleteClick(entry.id)}
+                          aria-label={confirmingId === entry.id ? `Confirm delete entry from ${format(parseISO(entry.date), 'MMM d, yyyy')}` : `Delete entry from ${format(parseISO(entry.date), 'MMM d, yyyy')}`}
+                          className={cn(
+                            "p-3.5 rounded-lg transition-all text-[10px] font-bold uppercase tracking-widest flex items-center gap-1",
+                            confirmingId === entry.id ? "text-white bg-red-600" : "text-slate-300 hover:text-red-600 hover:bg-red-50"
+                          )}
                         >
-                          <Trash2 size={18} />
+                          {confirmingId === entry.id ? 'Confirm?' : <Trash2 size={18} />}
                         </button>
                       </div>
                     </div>
@@ -945,15 +968,29 @@ function InsightsView({ state }: { state: AppState }) {
         <div className="space-y-8">
           <div className="bg-white border border-line rounded-2xl p-8 shadow-sm">
             <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-6">Current Velocity</h3>
-            <div className="flex items-baseline gap-2">
-              <span className={cn("text-5xl font-bold", ratePerWeek < 0 ? "text-brand-600" : "text-red-500")}>
-                {ratePerWeek > 0 ? '+' : ''}{ratePerWeek.toFixed(2)}
-              </span>
-              <span className="text-slate-400 font-medium">{state.goal?.unit} / week</span>
-            </div>
-            <p className="text-xs text-slate-500 mt-4 leading-relaxed">
-              Based on your trailing 30-day trend. This velocity is used to calculate your projected goal dates.
-            </p>
+            {(() => {
+              const hasEnoughData = state.entries.length >= 2;
+              const isLosingGoal = !!state.goal && state.goal.targetWeight < state.goal.startWeight;
+              const isGoodDirection = isLosingGoal ? ratePerWeek <= 0 : ratePerWeek >= 0;
+              return (
+                <>
+                  <div className="flex items-baseline gap-2">
+                    <span className={cn(
+                      "text-5xl font-bold",
+                      !hasEnoughData ? "text-slate-300" : isGoodDirection ? "text-brand-600" : "text-red-600"
+                    )}>
+                      {hasEnoughData ? `${ratePerWeek > 0 ? '+' : ''}${ratePerWeek.toFixed(2)}` : '—'}
+                    </span>
+                    <span className="text-slate-400 font-medium">{state.goal?.unit} / week</span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-4 leading-relaxed">
+                    {hasEnoughData
+                      ? "Based on your trailing 30-day trend. This velocity is used to calculate your projected goal dates."
+                      : "Log at least two entries to see your weekly velocity."}
+                  </p>
+                </>
+              );
+            })()}
           </div>
 
           <div className="bg-white border border-line rounded-2xl p-8 shadow-sm">
@@ -1290,41 +1327,45 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
           <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Profile & Goals</h3>
           <div className="grid grid-cols-1 gap-6">
             <div className="space-y-2">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Display Name</label>
-              <input 
-                type="text" 
-                value={state.name || ''} 
+              <label htmlFor="settings-display-name" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Display Name</label>
+              <input
+                id="settings-display-name"
+                type="text"
+                value={state.name || ''}
                 onChange={(e) => onUpdateProfile({ name: e.target.value })}
                 placeholder="Your Name"
                 className="w-full p-4 bg-slate-50 rounded-xl font-bold outline-none border border-transparent focus:border-brand-500 focus:bg-white transition-all"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Start Weight ({state.goal?.unit})</label>
-              <input 
-                type="number" 
+              <label htmlFor="settings-start-weight" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Start Weight ({state.goal?.unit})</label>
+              <input
+                id="settings-start-weight"
+                type="number"
                 step="0.1"
-                value={state.goal?.startWeight || ''} 
+                value={state.goal?.startWeight || ''}
                 onChange={(e) => onUpdateGoal({ startWeight: parseFloat(e.target.value) })}
                 className="w-full p-4 bg-slate-50 rounded-xl font-bold outline-none border border-transparent focus:border-brand-500 focus:bg-white transition-all"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Target Weight ({state.goal?.unit})</label>
-              <input 
-                type="number" 
+              <label htmlFor="settings-target-weight" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Target Weight ({state.goal?.unit})</label>
+              <input
+                id="settings-target-weight"
+                type="number"
                 step="0.1"
-                value={state.goal?.targetWeight || ''} 
+                value={state.goal?.targetWeight || ''}
                 onChange={(e) => onUpdateGoal({ targetWeight: parseFloat(e.target.value) })}
                 className="w-full p-4 bg-slate-50 rounded-xl font-bold outline-none border border-transparent focus:border-brand-500 focus:bg-white transition-all"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Milestone Size ({state.goal?.unit})</label>
-              <input 
-                type="number" 
+              <label htmlFor="settings-milestone-size" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Milestone Size ({state.goal?.unit})</label>
+              <input
+                id="settings-milestone-size"
+                type="number"
                 step="1"
-                value={state.goal?.milestoneSize || ''} 
+                value={state.goal?.milestoneSize || ''}
                 onChange={(e) => onUpdateGoal({ milestoneSize: parseFloat(e.target.value) })}
                 className="w-full p-4 bg-slate-50 rounded-xl font-bold outline-none border border-transparent focus:border-brand-500 focus:bg-white transition-all"
               />
@@ -1341,11 +1382,12 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
                   <p className="text-sm font-bold text-ink">Smoothing Window</p>
                   <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Days: {state.settings.smoothingWindow}</p>
                 </div>
-                <input 
-                  type="range" 
-                  min="3" 
-                  max="30" 
-                  value={state.settings.smoothingWindow} 
+                <input
+                  type="range"
+                  min="3"
+                  max="30"
+                  aria-label={`Smoothing window: ${state.settings.smoothingWindow} days`}
+                  value={state.settings.smoothingWindow}
                   onChange={(e) => onUpdateSettings({ smoothingWindow: parseInt(e.target.value) })}
                   className="w-32 accent-brand-500"
                 />
@@ -1355,8 +1397,11 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
                   <p className="text-sm font-bold text-ink">Privacy Mode</p>
                   <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Hide raw numbers</p>
                 </div>
-                <button 
+                <button
                   onClick={() => onUpdateSettings({ hideRawNumbers: !state.settings.hideRawNumbers })}
+                  role="switch"
+                  aria-checked={state.settings.hideRawNumbers}
+                  aria-label="Privacy Mode: hide raw numbers"
                   className={cn(
                     "w-12 h-6 rounded-full transition-all relative",
                     state.settings.hideRawNumbers ? "bg-brand-500" : "bg-slate-200"
@@ -1373,8 +1418,11 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
                   <p className="text-sm font-bold text-ink">Dark Mode</p>
                   <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Toggle app theme</p>
                 </div>
-                <button 
+                <button
                   onClick={() => onUpdateSettings({ darkMode: !state.settings.darkMode })}
+                  role="switch"
+                  aria-checked={state.settings.darkMode}
+                  aria-label="Dark Mode"
                   className={cn(
                     "w-12 h-6 rounded-full transition-all relative",
                     state.settings.darkMode ? "bg-brand-500" : "bg-slate-200"
@@ -1516,6 +1564,9 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
                 <button
                   type="button"
                   onClick={() => void handleHealthSyncToggle()}
+                  role="switch"
+                  aria-checked={state.settings.syncToSystemHealth}
+                  aria-label={`Save new logs to ${nativeHealthLabel}`}
                   className={cn(
                     'w-12 h-6 rounded-full transition-all relative shrink-0',
                     state.settings.syncToSystemHealth ? 'bg-brand-500' : 'bg-slate-200',
@@ -1539,14 +1590,17 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-bold text-ink flex items-center gap-2">
-                    {remindersEnabled ? <Bell size={16} className="text-brand-500" /> : <BellOff size={16} className="text-slate-400" />}
+                    {remindersEnabled ? <Bell size={16} className="text-brand-600" /> : <BellOff size={16} className="text-slate-400" />}
                     Daily Reminders
                   </p>
                   <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Lockscreen push notifications</p>
                 </div>
-                <button 
+                <button
                   onClick={() => handleToggleReminders(!remindersEnabled)}
                   disabled={!vapidConfigured}
+                  role="switch"
+                  aria-checked={remindersEnabled}
+                  aria-label="Daily Reminders"
                   className={cn(
                     "w-12 h-6 rounded-full transition-all relative disabled:opacity-40 disabled:cursor-not-allowed",
                     remindersEnabled ? "bg-brand-500" : "bg-slate-200"
@@ -1618,7 +1672,7 @@ function SettingsView({ state, onUpdateSettings, onUpdateGoal, onUpdateProfile, 
                   <input type="file" accept=".csv" onChange={(e) => e.target.files?.[0] && handleCsv(e.target.files[0])} className="hidden" />
                 </label>
               </div>
-              <button onClick={onReset} className="w-full p-4 text-red-500 font-bold text-[10px] uppercase tracking-widest hover:bg-red-50 rounded-xl transition-all mt-4">
+              <button onClick={onReset} className="w-full p-4 text-red-600 font-bold text-[10px] uppercase tracking-widest hover:bg-red-50 rounded-xl transition-all mt-4">
                 Reset All Data
               </button>
             </div>
@@ -1633,17 +1687,24 @@ function LogModal({ onClose, onSave, unit, lastWeight }: any) {
   const [weight, setWeight] = useState(lastWeight?.toString() || '');
   const [tags, setTags] = useState<string[]>([]);
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSave = () => {
-    const now = new Date();
-    const [year, month, day] = date.split('-').map(Number);
-    const entryDate = new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds());
-    
-    onSave({ 
-      date: entryDate.toISOString(), 
-      weight: parseFloat(weight), 
-      tags 
-    });
+  const handleSave = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      const now = new Date();
+      const [year, month, day] = date.split('-').map(Number);
+      const entryDate = new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds());
+
+      await onSave({
+        date: entryDate.toISOString(),
+        weight: parseFloat(weight),
+        tags
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -1659,30 +1720,32 @@ function LogModal({ onClose, onSave, unit, lastWeight }: any) {
         <div className="w-12 h-1 bg-slate-200 rounded-full mx-auto mb-6" />
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-2xl font-bold tracking-tight">Log Weight</h3>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-all active:scale-90">
+          <button onClick={onClose} aria-label="Close" className="p-3 text-slate-400 hover:bg-slate-100 rounded-full transition-all active:scale-90">
             <Plus size={24} className="rotate-45" />
           </button>
         </div>
         <div className="space-y-8">
           <div className="flex justify-center">
-            <input 
-              type="date" 
+            <input
+              type="date"
               value={date}
               max={format(new Date(), 'yyyy-MM-dd')}
               onChange={(e) => setDate(e.target.value)}
+              aria-label="Entry date"
               className="bg-slate-100 text-slate-600 font-bold px-4 py-2 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
           <div className="text-center">
             <div className="flex items-baseline justify-center gap-2">
-              <input 
-                autoFocus 
-                type="number" 
-                step="0.1" 
-                placeholder="0.0" 
-                value={weight} 
-                onChange={(e) => setWeight(e.target.value)} 
-                className="text-6xl font-black text-brand-600 w-48 text-center outline-none bg-transparent" 
+              <input
+                autoFocus
+                type="number"
+                step="0.1"
+                placeholder="0.0"
+                value={weight}
+                onChange={(e) => setWeight(e.target.value)}
+                aria-label={`Weight in ${unit}`}
+                className="text-6xl font-black text-brand-600 w-48 text-center outline-none bg-transparent"
               />
               <span className="text-2xl font-bold text-slate-300">{unit}</span>
             </div>
@@ -1691,11 +1754,12 @@ function LogModal({ onClose, onSave, unit, lastWeight }: any) {
             <p className="text-xs font-bold text-slate-400 mb-4 uppercase tracking-widest text-center">Any factors today?</p>
             <div className="flex flex-wrap justify-center gap-2">
               {DEFAULT_TAGS.map(tag => (
-                <button 
-                  key={tag} 
-                  onClick={() => setTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag])} 
+                <button
+                  key={tag}
+                  onClick={() => setTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag])}
+                  aria-pressed={tags.includes(tag)}
                   className={cn(
-                    "px-4 py-2.5 rounded-2xl text-sm font-bold transition-all active:scale-95", 
+                    "px-4 py-2.5 rounded-2xl text-sm font-bold transition-all active:scale-95",
                     tags.includes(tag) ? "bg-brand-500 text-white shadow-md shadow-brand-100" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
                   )}
                 >
@@ -1704,12 +1768,13 @@ function LogModal({ onClose, onSave, unit, lastWeight }: any) {
               ))}
             </div>
           </div>
-          <button 
-            onClick={handleSave} 
-            disabled={!weight} 
-            className="w-full py-5 bg-brand-500 text-white rounded-2xl font-black text-lg shadow-xl hover:bg-brand-600 disabled:opacity-50 transition-all active:scale-[0.98]"
+          <button
+            onClick={handleSave}
+            disabled={!weight || isSaving}
+            className="w-full py-5 bg-brand-500 text-white rounded-2xl font-black text-lg shadow-xl hover:bg-brand-600 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-center gap-3"
           >
-            Save Entry
+            {isSaving && <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+            {isSaving ? 'Saving…' : 'Save Entry'}
           </button>
         </div>
       </motion.div>
@@ -1766,16 +1831,16 @@ function Onboarding({ onComplete, initialWeight, initialUnit = 'lbs' }: any) {
               </div>
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Current Weight ({unit})</label>
-                  <input type="number" step="0.1" value={currentWeight} onChange={(e) => setCurrentWeight(e.target.value)} className="w-full p-4 bg-slate-50 text-ink placeholder:text-slate-400 rounded-xl text-2xl font-bold outline-none border border-line focus:border-brand-500 focus:bg-white transition-all" placeholder="0.0" />
+                  <label htmlFor="onboard-current-weight" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Current Weight ({unit})</label>
+                  <input id="onboard-current-weight" type="number" step="0.1" value={currentWeight} onChange={(e) => setCurrentWeight(e.target.value)} className="w-full p-4 bg-slate-50 text-ink placeholder:text-slate-400 rounded-xl text-2xl font-bold outline-none border border-line focus:border-brand-500 focus:bg-white transition-all" placeholder="0.0" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Goal Weight ({unit})</label>
-                  <input type="number" step="0.1" value={targetWeight} onChange={(e) => setTargetWeight(e.target.value)} className="w-full p-4 bg-slate-50 text-ink placeholder:text-slate-400 rounded-xl text-2xl font-bold outline-none border border-line focus:border-brand-500 focus:bg-white transition-all" placeholder="0.0" />
+                  <label htmlFor="onboard-goal-weight" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Goal Weight ({unit})</label>
+                  <input id="onboard-goal-weight" type="number" step="0.1" value={targetWeight} onChange={(e) => setTargetWeight(e.target.value)} className="w-full p-4 bg-slate-50 text-ink placeholder:text-slate-400 rounded-xl text-2xl font-bold outline-none border border-line focus:border-brand-500 focus:bg-white transition-all" placeholder="0.0" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Milestone Size</label>
-                  <select value={milestoneSize} onChange={(e) => setMilestoneSize(e.target.value)} className="w-full p-4 bg-slate-50 text-ink rounded-xl font-bold outline-none border border-line focus:border-brand-500 focus:bg-white transition-all appearance-none">
+                  <label htmlFor="onboard-milestone-size" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Milestone Size</label>
+                  <select id="onboard-milestone-size" value={milestoneSize} onChange={(e) => setMilestoneSize(e.target.value)} className="w-full p-4 bg-slate-50 text-ink rounded-xl font-bold outline-none border border-line focus:border-brand-500 focus:bg-white transition-all appearance-none">
                     <option value="2">2 {unit} chunks</option>
                     <option value="5">5 {unit} chunks</option>
                     <option value="10">10 {unit} chunks</option>
