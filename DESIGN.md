@@ -1,214 +1,209 @@
 ---
 name: Pivot
-description: Precision weight tracking that reads the trend, not the noise.
+description: A weather forecast for your body — the trend is the track, today's reading is one noisy observation.
 colors:
-  primary: "#1e40af"
-  primary-deep: "#1e3a8a"
-  primary-soft: "#e0effe"
-  primary-pale: "#f0f7ff"
-  ink: "#0f172a"
-  paper: "#f8fafc"
-  surface: "#ffffff"
-  surface-hover: "#f8fafc"
-  surface-active: "#f1f5f9"
-  line: "#e2e8f0"
-  text-muted: "#94a3b8"
-  text-secondary: "#64748b"
-  success: "#059669"
-  success-bg: "#ecfdf5"
-  warning: "#d97706"
-  warning-bg: "#fffbeb"
-  danger: "#dc2626"
-  danger-bg: "#fef2f2"
+  paper: "#f5f1e4"
+  surface: "#fbf9f1"
+  surface-hover: "#efe9d8"
+  surface-active: "#e7dfc9"
+  ink: "#14213d"
+  ink-muted: "#56617a"
+  ink-faint: "#8992a6"
+  line: "#ddd3b8"
+  line-strong: "#c9bc98"
+  track: "#c1502b"
+  track-deep: "#9c3d20"
+  track-soft: "#f1d9c9"
+  cone: "#e3e6ec"
+  advisory: "#92661c"
+  advisory-bg: "#f3e6c4"
+  verified: "#2f6b4c"
+  verified-bg: "#dcebe1"
+  danger: "#a62f26"
+  danger-bg: "#f3dcd8"
 typography:
   display:
-    fontFamily: "'Space Grotesk', sans-serif"
+    fontFamily: "'Barlow Condensed', ui-sans-serif, sans-serif"
     fontWeight: 700
-    letterSpacing: "-0.02em"
+    letterSpacing: "-0.01em"
   body:
     fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif"
     fontWeight: 400
     lineHeight: 1.5
-  label:
-    fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif"
-    fontSize: "10px"
-    fontWeight: 700
-    letterSpacing: "0.1em"
+  legend:
+    fontFamily: "'Barlow Condensed', ui-sans-serif, sans-serif"
+    fontSize: "9px"
+    fontWeight: 600
+    letterSpacing: "0.09em"
   numeral:
-    fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif"
-    fontWeight: 900
-    letterSpacing: "-0.02em"
+    fontFamily: "'JetBrains Mono', ui-monospace, monospace"
+    fontWeight: 700
 rounded:
-  sm: "8px"
-  md: "12px"
-  lg: "16px"
-  xl: "24px"
+  sm: "4px"
+  md: "6px"
   full: "9999px"
 spacing:
   "2": "8px"
   "4": "16px"
   "6": "24px"
-  "8": "32px"
 components:
   button-primary:
-    backgroundColor: "{colors.primary}"
+    backgroundColor: "{colors.track}"
     textColor: "#ffffff"
-    typography: "{typography.numeral}"
-    rounded: "{rounded.lg}"
-    padding: "20px 24px"
+    typography: "{typography.body}"
+    rounded: "{rounded.md}"
+    padding: "16px 24px"
   button-primary-hover:
-    backgroundColor: "{colors.primary-deep}"
-  chip-tag-selected:
-    backgroundColor: "{colors.primary}"
+    backgroundColor: "{colors.track-deep}"
+  chip-selected:
+    backgroundColor: "{colors.track}"
     textColor: "#ffffff"
-    rounded: "{rounded.lg}"
-    padding: "10px 16px"
-  chip-tag-unselected:
-    backgroundColor: "{colors.surface-active}"
-    textColor: "{colors.text-secondary}"
-    rounded: "{rounded.lg}"
-    padding: "10px 16px"
-  stat-card:
+    rounded: "{rounded.sm}"
+    padding: "8px 14px"
+  chip-unselected:
+    backgroundColor: "{colors.surface-hover}"
+    textColor: "{colors.ink-muted}"
+    rounded: "{rounded.sm}"
+    padding: "8px 14px"
+  legend-tile:
     backgroundColor: "{colors.surface}"
-    rounded: "{rounded.lg}"
-    padding: "24px"
+    rounded: "{rounded.md}"
+    padding: "16px"
 ---
 
 # Design System: Pivot
 
 ## Overview
 
-**Creative North Star: "The Quiet Clinician"**
+**Creative North Star: "The Forecast Cone"**
 
-Pivot reads like a discreet, precise health companion, never a hospital dashboard and never a leaderboard. One instrument-blue accent (`#1e40af`) carries every action and every moment that matters; everything else recedes into a slate neutral scale that is calm at rest and only ever raises its voice for a genuine warning (amber) or a destructive action (red). The interface is confident about hierarchy — a single giant, 900-weight numeral commands each screen — but restrained about ornament: flat white cards, soft single-direction shadows, and generous rounded corners instead of borders, gradients, or texture.
+Pivot reads like a weather bulletin for your body: the trend is a forecast track, today's raw reading is one noisy observation, and a widening cone of uncertainty is how the system admits it isn't certain — the same honesty a meteorologist uses to keep a chaotic system legible instead of alarming. This directly replaces Pivot's earlier "Quiet Clinician" identity (flat blue-on-slate cards, soft rounded shapes) after that system was judged dated and too close to generic clinical-SaaS chrome. Nothing about the underlying product changed — trend-over-noise, hide-raw-numbers, explain-don't-punish-fluctuation all carry over exactly — only the visual world does.
 
-The density is mobile-first and unapologetically single-column: every surface is built inside a fixed, phone-width frame (max 448px) with a bottom tab bar and a floating action button, even when viewed on desktop. Motion is physical rather than decorative — spring-damped sheets, `active:scale-95` presses — which reinforces the "instrument you hold" feeling rather than a "page you browse." Data visualization (the trend chart) is intentionally the quietest element on the Dashboard: a thin, low-opacity area fill with no gridlines beyond a faint horizontal rule, so the number above it stays the hero.
+The palette is warm chart-paper cream and deep navy ink, not cold slate-and-blue: charts are printed on paper, not glowing on a hospital monitor. One accent — a confident coral-red "forecast track" — carries every primary action and every number that matters, the same way a storm track's centerline is drawn in a single warm color against a muted map. Typography pairs a condensed, legend-style display face (used almost exclusively in small tracked uppercase, like a chart's axis labels) with tabular monospace numerals for every reading, delta, and date — the numbers are meant to look measured, not decorated. Shape language shifted from "rounded-everything, no borders" to small radii and real hairline borders doing the separation work a chart's own gridlines would do; there is no soft drop-shadow anywhere in the system.
 
-Confirmed anti-reference: **gamified fitness apps.** Pivot already celebrates streaks and milestones, but never with badges, leaderboards, confetti, or streak-shaming language — celebration stays inside the same calm, single-accent vocabulary as everything else (a quiet amber banner, not a burst).
+Dark mode is not a mechanical inversion — it's its own scene: a chart room at night, read under the kind of low, warm light that preserves night vision, so the accent shifts to a slightly softer coral rather than staying identical to its daylight value.
+
+Confirmed anti-reference (carried over, still binding): **gamified fitness apps** — no badges, no leaderboards, no confetti, no streak-shaming. A consecutive-logging streak still exists, but it renders as a quiet bulletin strip with a calendar-check icon, not a flame or a burst.
+
+Built with headroom for a confirmed future direction: Pivot is intended to grow into an AI macro tracker and body scanner. Nothing about those exists yet, but the instrument/forecast metaphor (a "reading," a "track," a "gauge") was chosen specifically because it extends cleanly to other kinds of body data without needing a second visual identity bolted on later.
 
 **Key Characteristics:**
-- One true accent hue (instrument blue); every other color is neutral or reserved for state (success/warning/danger)
-- A single 900-weight "black" numeral or word per moment of commitment — brand mark, hero reading, primary action
-- Tiny, bold, uppercase, wide-tracked "eyebrow" labels used everywhere instead of visible section chrome
-- Flat cards with soft shadows and no borders-as-decoration; shadow weight itself signals importance
-- Mobile-app shell (fixed phone frame, bottom nav, floating action button) regardless of viewport
-- Physical motion: spring sheets, scale-press feedback, no gratuitous decorative animation
+- One accent — warm coral-red "track" — carries every primary action and every number that matters; nothing else is saturated
+- Warm cream chart-paper ground and deep navy ink, never cold slate-and-blue
+- Condensed, tracked, uppercase "legend" micro-type (8–10px) standing in for section chrome, styled like a chart's own axis labels
+- Tabular monospace numerals for every measured value — weights, deltas, dates, percentages
+- Hairline borders and small radii (4–6px) doing the separation work; no soft drop-shadows anywhere
+- A literal cone-of-uncertainty sparkline on the Dashboard's trend headline, and a shaded projection band on the full Forecast chart
+- Dark mode is its own considered scene ("the chart room at night"), not an inverted palette
 
 ## Colors
 
-A near-monochrome neutral system built entirely from one slate ramp, punctuated by exactly one accent hue and three small state colors that only appear when they have something specific to say.
+A warm, near-monochrome paper-and-ink system, punctuated by exactly one accent hue and three small state colors that only appear attached to a real system state.
 
 ### Primary
-- **Instrument Blue** (`#1e40af` / brand-500): The single accent. Every primary action (Log Weight, Continue with Google, Connect to Health), every active nav icon, every "this is the number that matters" moment (trend headline, hero weight figure) uses this one hue. It never competes with itself — there is no secondary brand color.
-- **Instrument Blue, Deep** (`#1e3a8a` / brand-600): Hover/pressed state for primary actions, and the resting state of the highest-commitment button (Google sign-in).
-- **Instrument Blue, Soft** (`#e0effe` / brand-100): Fills behind small icon badges and active nav pills — enough presence to mark "selected," not enough to compete with content.
-- **Instrument Blue, Pale** (`#f0f7ff` / brand-50): Faint tint backgrounds for banners (the streak card) and progress-track fills — color as atmosphere, not as content.
+- **Forecast Track** (`#c1502b` light / `#e2795c` dark): The single accent. Every primary action (Save Entry, Continue with Google, Connect to Health), every active nav icon, and the trend headline number itself use this one hue — it is quite literally the color of the storm track's centerline.
+- **Track, Deep** (`#9c3d20` light / `#c15a3d` dark): Hover/pressed state for primary actions, and the color used whenever "track" needs to render as small text (rather than a background) to keep contrast comfortable.
+- **Track, Soft** (`#f1d9c9` light / `#3a2a22` dark): Faint tint fills — the active milestone gauge fill, the health-sync icon badge background.
 
 ### Neutral
-- **Ink** (`#0f172a`): Primary text and the dark-mode page background — the neutral ramp's darkest step.
-- **Paper** (`#f8fafc`): Page background in light mode, and primary text in dark mode — the same ramp's lightest step.
-- **Surface** (`#ffffff`): Card and sheet background at rest (light mode).
-- **Line** (`#e2e8f0`): Every border and divider in the system — there is exactly one border color.
-- **Text, Secondary** (`#64748b`): Body copy that isn't the headline (descriptions, helper text).
-- **Text, Muted** (`#94a3b8`): Eyebrow labels, placeholder text, and disabled/inactive nav icons.
+- **Paper** (`#f5f1e4` light / `#0c1424` dark): The page background — warm chart-paper cream in light mode, near-black "chart room at night" in dark mode.
+- **Surface** (`#fbf9f1` light / `#121b2e` dark): Card and sheet background.
+- **Ink** (`#14213d` light / `#f1ead9` dark): Primary text — deep chart ink in light mode, warm parchment near-white in dark mode.
+- **Ink, Muted** (`#56617a` light / `#abb2c2` dark): Body copy that isn't the headline.
+- **Ink, Faint** (`#8992a6`, same value both modes): Legend labels and placeholder text — deliberately reused as both modes' "muted" tier rather than inventing an unreachable fourth gray that would fail contrast (a lesson carried over from the prior system's audit).
+- **Line** (`#ddd3b8` light / `#26314a` dark): Every hairline border and divider in the system — there is exactly one border color per mode.
 
 ### Semantic (state only — never decorative)
-- **Success** (`#059669` on `#ecfdf5`): Health-sync "Connected" status only.
-- **Warning** (`#d97706` on `#fffbeb`): Spike-detected banners, new-streak-record banners, and "permission needed" states — Pivot's warmest color is reserved for moments that are informative, never alarming.
-- **Danger** (`#dc2626` on `#fef2f2`): Destructive actions only (delete-entry hover) and hard errors.
+- **Advisory** (`#92661c` on `#f3e6c4` light; `#e4be6e` on `#332a15` dark): Spike-detected banners, new-streak-record banners, "permission needed" states, week-over-week gain in the log.
+- **Verified** (`#2f6b4c` on `#dcebe1` light; `#7fc69e` on `#16281f` dark): Health-sync "Connected" status and success toasts only.
+- **Danger** (`#a62f26` on `#f3dcd8` light; `#ef5344` on `#3a1d19` dark): Destructive actions and hard errors only. Deliberately kept more purely red than Track's orange-leaning coral in both modes, so "something is wrong" never reads as a variant of the brand accent.
 
 ### Named Rules
-**The One Voice Rule.** There is exactly one accent hue in this system. A second "brand" color is never introduced; new emphasis is expressed through the blue ramp's weight (50→900), not a new hue.
+**The One Track Rule.** There is exactly one accent hue. A second saturated color is never introduced for emphasis; new emphasis is a weight or shade change on Track, or a move to a semantic state color when a real state is involved.
 
-**The Mirror Rule.** Light mode and dark mode are the *same* neutral (slate) ramp, just read in opposite directions — `ink`/`paper` swap ends, `line`/`surface-hover`/`surface-active` each swap to their mirrored step. A new neutral token must define both ends of its own mirror; never hand-pick an unrelated dark-mode color.
+**The Paper Rule.** The system's neutrals are warm (cream/tan-gray), never cool slate — light mode is chart paper, dark mode is a night chart room, and any new neutral token must pick a warm-family value consistent with one of those two scenes.
 
-**The State-Only Rule.** Success, warning, and danger colors appear only attached to a real system state (connected, spike detected, destructive action) — never as page decoration, never to differentiate content that isn't actually in that state.
+**The Reused Muted Rule.** `ink-muted` and `ink-faint` are allowed to share a value (as they do in dark mode, and nearly do in light mode) rather than manufacturing a fourth gray step that cannot pass WCAG AA at the sizes this system actually uses text at. Do not add a "more muted" tier without checking its contrast first.
 
 ## Typography
 
-**Display Font:** Space Grotesk (with sans-serif fallback)
+**Display/Legend Font:** Barlow Condensed (with sans-serif fallback)
 **Body Font:** Inter (with ui-sans-serif, system-ui, sans-serif fallback)
+**Numeral Font:** JetBrains Mono (with ui-monospace, monospace fallback)
 
-**Character:** A geometric, slightly technical display face (Space Grotesk) for headings paired with a highly legible, neutral workhorse (Inter) for everything else — precise without feeling cold, because the numerals (set in Inter at black weight, not the display face) are what actually carry emotional weight.
+**Character:** A condensed, technical grotesk used almost exclusively as small tracked uppercase — the system's substitute for chart chrome — paired with a legible body workhorse and a genuine tabular monospace for every measured value. Nothing is set in a "designer" display serif or script; this is an instrument-reading system, not an editorial one.
 
 ### Hierarchy
-- **Display** (700, `text-2xl`–`text-4xl`, tight tracking): Screen titles and the wordmark ("Pivot", "Entry Log", "Trend: 178.4 lbs"). Space Grotesk.
-- **Numeral** (900 "black", `text-3xl`–`text-6xl`, tight tracking): The one number or word each screen is organized around — today's weight, the LogModal entry field, milestone targets, the primary CTA label. Inter, not the display face.
-- **Body** (400–500, `text-sm`–`text-base`): Descriptions, helper copy, list content.
-- **Label** (700, 9–10px, `0.1em`+ letter-spacing, uppercase): The system's signature micro-typography — every stat-card caption, section subtitle, settings row description, and tag chip uses this exact treatment.
+- **Display** (700, `text-2xl`–`text-5xl`, Barlow Condensed, tight tracking): Screen titles and the wordmark ("Pivot", "Log", "Forecast", "Setup"). Used sparingly — most of the system's typographic voice comes from Legend and Numeral, not Display.
+- **Numeral** (700, tabular, `text-2xl`–`text-6xl`, JetBrains Mono): Every measured value — trend weight, entry weight, deltas, dates, percentages, velocity. Applied via the `.tabular` utility class.
+- **Legend** (600, 8–11px, Barlow Condensed, `0.09em`+ tracking, uppercase): The system's signature micro-typography, applied via the `.legend-label` utility class — every card caption, section subtitle, nav label, status pill, and settings row description.
+- **Body** (400–500, `text-sm`–`text-base`, Inter): Descriptions, helper copy, list content, form labels' associated values.
 
 ### Named Rules
-**The Black Weight Rule.** Font-weight 900 is reserved for text that carries a decision or a commitment: the brand mark, a hero reading, a milestone numeral, or a primary action's own label. It is never used for supporting copy, however short.
+**The Instrument Numeral Rule.** Any value the product actually measured or calculated — never decorative — is set in tabular monospace (JetBrains Mono). If it's a real number from the data, it gets the Numeral treatment; if it's a word or a label, it doesn't.
 
-**The Eyebrow Rule.** Any secondary or contextual label (card captions, view subtitles, status text, delta indicators) is set at 9–10px, bold, uppercase, and wide-tracked (`letter-spacing: 0.1em`+). This is the system's substitute for visible chrome (icons, dividers, section headers) — the label itself does that job.
+**The Legend-Not-Chrome Rule.** Section headers, captions, and status text use the small tracked uppercase Legend style instead of icons, dividers, or a heavier heading — the label itself does the work a chart's own axis legend would do.
 
 ## Layout
 
-A fixed, phone-width application shell (`max-width: 448px`), centered and full-height, with a heavy drop shadow separating it from the surrounding viewport — the app presents as a single physical device even inside a desktop browser window. Content scrolls in one column inside `main`, padded `24px` on the sides and pulled up top by the device's safe-area inset; a fixed bottom tab bar (with a floating circular action button breaking its top edge) stays pinned regardless of scroll position. Card sections stack vertically with `24px` gaps (`space-y-6`/`space-y-8`); the only place true two-up density appears is the stat-card grid (`grid-cols-2`) and the horizontally-scrolling milestone strip. Internal card padding scales with the card's importance: small stat cards use `24px`, hero/settings cards use `32px`.
+The same fixed, phone-width application shell as before (`max-width: 448px`, centered, full height) sits on a warm charcoal desk backdrop (`#2a2620`) rather than a neutral gray — the app reads as a physical instrument sitting on a desk, not a browser window. Content scrolls in one column inside `main`; a bottom instrument rail (icon + Legend-style text label per tab) stays pinned, with a squared-off coral "record a reading" button breaking its top edge. Cards stack with consistent gaps; the Dashboard's stat grid is the only place true two-up density appears, alongside the horizontally-scrolling milestone gauge strip.
 
 ## Elevation & Depth
 
-Hybrid: flat surfaces at rest, with shadow weight used deliberately as a hierarchy signal rather than uniform "material" elevation. Ordinary cards (stat cards, list containers, chart panels) sit at a soft, almost-invisible `shadow-sm` — presence without weight. Shadow escalates specifically at moments of commitment: the primary Log Weight button, the Google sign-in button, the app's own outer frame, and the Log Weight bottom sheet all jump to `shadow-xl`/`shadow-2xl`. The escalation is the point — it marks "this is the thing to press" or "this is the whole app," not just "this is a raised panel."
-
-### Shadow Vocabulary
-- **Resting card** (`box-shadow: 0 1px 2px rgba(0,0,0,0.05)` / `shadow-sm`): Default for every card, list container, and chart panel.
-- **Commitment** (`shadow-xl`/`shadow-2xl`, sometimes tinted `rgba(30,64,175,…)` — e.g. `shadow-brand-500/20`, `shadow-brand-600/25`): Reserved for primary CTAs, the app shell itself, and modal sheets. The tinted variant (a soft blue glow instead of neutral black) appears only under brand-blue elements — the sign-in button, the hero icon badge.
-- **Micro-lift** (`shadow-md`): A small number of secondary emphasis spots (fullscreen chart toggle) between resting and commitment.
+Flat, deliberately. There are no soft drop-shadows anywhere in the built system — separation between surfaces comes entirely from hairline borders (`{colors.line}`) and background-value steps (`paper` → `surface` → `surface-hover` → `surface-active`), the same way a printed chart separates regions with rules and tone rather than cast shadow. The one exception is the Log Weight sheet and the sign-in button, which keep a conventional `shadow-lg`/`shadow-2xl` purely for the physical "this sheet is above the page" affordance — not as a hierarchy signal elsewhere in the system.
 
 ### Named Rules
-**The Escalation Rule.** Shadow depth tracks importance, not surface type. A card doesn't get heavier shadow because it's "raised" — it gets heavier shadow because pressing it (or being it) is the most important thing on screen.
+**The Flat Instrument Rule.** Depth is drawn with a line and a tone step, not a shadow. A new component reaching for `box-shadow` to separate itself from its background is solving the problem the wrong way in this system — reach for a border or a surface-step instead.
 
 ## Shapes
 
-Rounded-everything, no sharp corners and almost no borders-as-decoration (the one exception is the `1px` `line` border used consistently on cards and dividers). Radius scales with element size rather than being uniform: small interactive controls (icon buttons, range inputs, date pickers) use `12px`; the default for cards, primary buttons, and tag chips is `16px`; a handful of hero-level surfaces (chart panels, the settings card, the History container) step up to `24px`. Pills (nav active-state, toggle tracks, status badges, the floating action button) are fully round. The one deliberate outlier is the Log Weight bottom sheet, whose top corners round at `32px` — larger than anything else in the system, marking it as the single most physical, "reach out and touch it" surface in the app.
+Small and consistent: `4px` for chips, tags, and small controls; `6px` for cards, buttons, and legend tiles; fully round only for genuinely circular things (toggle tracks/thumbs, status pills). There is no large-radius "soft card" anywhere in the system — the closest thing, the Log Weight bottom sheet, only rounds its top corners at a modest `12px` (Tailwind `rounded-t-xl`), a deliberate step down from the prior system's dramatic `32px` sheet, consistent with the rest of the system's tighter, more structural corner language.
 
 ## Components
 
 ### Buttons
-- **Shape:** `16px` radius (`rounded-2xl`), matching cards and chips.
-- **Primary:** Instrument Blue (`#1e40af`) background, white text, black (900) weight, generous padding (`20px 24px` for full-width CTAs). Always paired with `active:scale-95` (or `scale-[0.98]`) press feedback.
-- **Hover / Focus:** Background deepens to Instrument Blue Deep (`#1e3a8a`); no separate focus ring style beyond the browser default is currently used on buttons (inputs do use a visible focus ring — see Inputs).
-- **Icon-only (nav, close, delete):** No fill at rest; `12px` radius hover background in a neutral or danger tint (`hover:bg-red-50` for delete) makes the click target obvious without adding a permanent border.
+- **Shape:** `6px` radius (`rounded-md`), a clear step down from the prior system's `16px`.
+- **Primary:** Track (`#c1502b`/`#e2795c`) background, white text, `rounded-md`, generous padding for full-width CTAs. `active:scale-95`/`scale-[0.98]` press feedback carried over unchanged.
+- **Inverted (highest-commitment, e.g. Export JSON):** `bg-ink`/`text-paper` — because ink and paper are mirrored opposites across light/dark, this button flips from "dark text on cream" to "cream text on dark" between modes, reading as the system's single highest-contrast action either way.
+- **Icon-only (nav, close, delete):** No fill at rest; a `surface-hover`/`danger-bg` hover background marks the click target.
 
 ### Chips (tag toggles)
-- **Style:** `16px` radius, `10px 16px` padding, bold body text. Unselected: neutral surface-active fill (`#f1f5f9`) with secondary text. Selected: Instrument Blue fill, white text, plus a soft tinted shadow (`shadow-brand-100`).
-- **State:** Binary toggle only (selected/unselected) — no third "disabled" chip state exists yet.
+- **Style:** `4px` radius (`rounded-sm`), `8px 14px` padding. Unselected: `surface-hover` fill with `ink-muted` text. Selected: Track fill, white text — no tinted shadow (the prior system's `shadow-brand-100` glow was dropped along with soft shadows generally).
 
-### Cards / Containers
-- **Corner Style:** `16px` for stat cards and list containers; `24px` for hero-level panels (chart, settings).
-- **Background:** White surface, no gradient, no texture.
-- **Shadow Strategy:** `shadow-sm` at rest (see Elevation & Depth); never heavier unless the card itself is the primary action of its screen.
-- **Border:** `1px` `line` color — present on nearly every card, doing the job borders usually share with shadow.
-- **Internal Padding:** `24px` standard, `32px` for hero/settings cards.
+### Cards / Legend Tiles
+- **Corner Style:** `6px` (`rounded-md`) uniformly — no more three-tier 16/16/24px radius scale.
+- **Background:** `surface`, no gradient, no texture.
+- **Border:** `1px` `line` color on every card — doing all the separation work elevation used to share with borders in the prior system.
+- **Shadow:** None (see Elevation & Depth).
 
 ### Inputs / Fields
-- **Style:** Filled, not outlined — neutral `surface-active` background, no visible border at rest, `12px` radius.
-- **Focus:** A visible `2px` Instrument Blue ring (`focus:ring-2 focus:ring-brand-500`) rather than a border-color shift.
-- **The hero numeral field (signature):** The weight-entry input in the Log Weight sheet has no visible field chrome at all — no background, no border, just a 6xl/black-weight number centered on the sheet. It reads as a display numeral you happen to be able to edit, not a form field.
+- **Style:** Filled, `surface-hover` background, `4px` radius, no visible border at rest.
+- **Focus:** A `2px` Track ring, or a Track border color shift (settings text fields), depending on context.
+- **The hero numeral field (signature, carried over):** The weight-entry input in the Log Weight sheet still has zero visible field chrome — no background, no border — but the numeral itself is now tabular monospace in Track Deep, not the prior system's Inter black-weight.
 
 ### Navigation
-- **Style:** Fixed bottom tab bar, five slots: four icon-only nav links plus a raised circular Instrument Blue floating action button (the "+", always centered, always breaking the bar's top edge by `-mt-10`).
-- **States:** Active tab icon turns Instrument Blue with a soft blue pill background (`bg-brand-50`, `12px` radius) behind it; inactive icons are muted slate with no background. No text labels — icon + color + pill is the entire active-state language.
+- **Style:** Fixed bottom instrument rail, five slots: four icon+Legend-label nav links plus a centered, squared-off (`rounded-md`, not fully round) Track "record a reading" button breaking the bar's top edge.
+- **States:** Active tab: Track-colored icon and label. Inactive: `ink-faint`. Text labels are always visible (a change from the prior system's icon-only nav, which an accessibility/first-time-user finding flagged directly).
 
-### Status Pills (signature)
-Small, fully-rounded (`rounded-full`) badges used for connection/permission state (Health sync: Connected / Permission needed / Unavailable). Always paired icon + label, always the 9–10px bold uppercase eyebrow treatment, background always the state color's `-bg` token with matching darker text — never a solid-fill badge.
+### Forecast Sparkline (signature, new)
+A small inline SVG on the Dashboard trend headline: the last ~14 trend points as a Track-colored line, with a triangular `cone`-colored wedge fanning out from the latest point toward the direction the forecast is heading — a literal, always-visible expression of the system's whole thesis, not just a chart-page feature.
 
-### Toggle Switches
-`48px × 24px` fully-rounded track, neutral slate when off, Instrument Blue when on; a `16px` white circular thumb slides between `left: 4px` and `left: 28px`. Used for every boolean setting (Privacy Mode, Dark Mode) — there is no checkbox anywhere in the system.
+### Milestone Gauge (signature, carried over, restyled)
+Small hairline-bordered tiles with a bottom-up fill (Track/Track-Soft) standing in for a physical gauge tick — the mechanic is unchanged from the prior system, only the surface treatment (flat + bordered, not soft + shadowed) changed.
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** keep exactly one accent hue. New emphasis is a weight or shade change on Instrument Blue, never a second brand color.
-- **Do** reserve font-weight 900 for numerals and words that represent a decision or commitment (see The Black Weight Rule).
-- **Do** use the 9–10px bold-uppercase-wide-tracked label style for any new secondary/contextual text instead of inventing a new caption style.
-- **Do** let shadow weight communicate importance (The Escalation Rule) — a new primary action earns `shadow-xl`, not just a slightly darker `shadow-sm`.
-- **Do** register both light- and dark-mode values for any new neutral token, mirrored from the existing slate ramp (The Mirror Rule), before using it anywhere.
-- **Do** keep celebratory/streak moments inside the existing calm vocabulary — a quiet amber banner with the eyebrow label style, not a badge, confetti, or a new visual language.
+- **Do** keep exactly one accent hue (Track). New emphasis is a weight/shade change or a move to a semantic state color, never a second saturated hue.
+- **Do** set every measured value (weights, deltas, dates, velocity, percentages) in tabular monospace (JetBrains Mono) — that's what separates a "reading" from a label in this system.
+- **Do** use the Legend style (Barlow Condensed, 8–11px, tracked uppercase) for section chrome instead of icons, dividers, or a heavier heading.
+- **Do** separate surfaces with a hairline border and a background-tone step, not a shadow.
+- **Do** give dark mode its own considered "night chart room" values rather than mechanically inverting light-mode hex values — check contrast for both, not just one.
+- **Do** keep celebratory/streak moments inside the calm bulletin-strip vocabulary — a quiet advisory strip with an icon and Legend label, never a badge or confetti.
 
 ### Don't:
-- **Don't** introduce a second accent color, even for a "special" feature — extend the existing blue ramp or use a state color instead.
-- **Don't** add a new destructive- or status-colored utility class without a matching `--theme-*` variable pair. Several existing classes (`red-100`, `red-500`, `red-700`, `emerald-700`) were used directly from Tailwind's default palette without a light/dark override and will render wrong in dark mode — don't repeat that gap.
-- **Don't** add gamification chrome (badges, leaderboards, confetti, "you beat 87% of users" comparisons) — it's the system's explicit anti-reference.
-- **Don't** give a card heavier elevation than `shadow-sm` unless it is genuinely the primary action or the whole app shell.
-- **Don't** use a bordered/outlined input style — every field in this system is filled, with focus communicated by a ring, not a border-color change.
+- **Don't** reach for `box-shadow` to separate a component from its background — this system has none outside the Log Weight sheet and the sign-in CTA.
+- **Don't** use a radius larger than `6px` on an ordinary card or button; the one deliberate exception (the Log Weight sheet's `12px` top corners) is already at the system's ceiling.
+- **Don't** introduce Space Grotesk, Inter-as-display, or any other prior-system typographic choice — Barlow Condensed and JetBrains Mono are the new display/numeral identity.
+- **Don't** add gamification chrome (badges, leaderboards, confetti, streak-shaming) — still the system's explicit anti-reference.
+- **Don't** style a new destructive or status color without checking it reads as clearly distinct from Track's orange-leaning coral, especially in dark mode where warm hues cluster together easily.

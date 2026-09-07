@@ -1,85 +1,82 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --color-brand-50: #f0f7ff;
-  --color-brand-100: #e0effe;
-  --color-brand-200: #bae0fd;
-  --color-brand-300: #7cc2fc;
-  --color-brand-400: #389df8;
-  --color-brand-500: #1e40af;
-  --color-brand-600: #1e3a8a;
-  --color-brand-700: #172554;
-  --color-brand-800: #111827;
-  --color-brand-900: #030712;
-
-  --color-ink: var(--theme-ink);
   --color-paper: var(--theme-paper);
-  --color-line: var(--theme-line);
   --color-surface: var(--theme-surface);
   --color-surface-hover: var(--theme-surface-hover);
   --color-surface-active: var(--theme-surface-active);
-  --color-inverted-bg: var(--theme-inverted-bg);
-  --color-inverted-text: var(--theme-inverted-text);
+  --color-ink: var(--theme-ink);
+  --color-ink-muted: var(--theme-ink-muted);
+  --color-ink-faint: var(--theme-ink-faint);
+  --color-line: var(--theme-line);
+  --color-line-strong: var(--theme-line-strong);
+
+  --color-track: var(--theme-track);
+  --color-track-deep: var(--theme-track-deep);
+  --color-track-soft: var(--theme-track-soft);
+  --color-cone: var(--theme-cone-bg);
+
+  --color-advisory: var(--theme-advisory);
+  --color-advisory-bg: var(--theme-advisory-bg);
+  --color-verified: var(--theme-verified);
+  --color-verified-bg: var(--theme-verified-bg);
+  --color-danger: var(--theme-danger);
+  --color-danger-bg: var(--theme-danger-bg);
 
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-display: 'Space Grotesk', sans-serif;
+  --font-display: 'Barlow Condensed', ui-sans-serif, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
 }
 
 @layer base {
   :root {
-    --theme-ink: #0f172a;
-    --theme-paper: #f8fafc;
-    --theme-line: #e2e8f0;
-    --theme-line-strong: #e2e8f0;
-    --theme-surface: #ffffff;
-    --theme-surface-hover: #f8fafc;
-    --theme-surface-active: #f1f5f9;
-    --theme-text-muted: #64748b;
-    --theme-text-secondary: #64748b;
-    --theme-text-primary: #475569;
-    --theme-inverted-bg: #0f172a;
-    --theme-inverted-text: #ffffff;
-    --theme-red-50: #fef2f2;
-    --theme-red-600: #dc2626;
-    --theme-emerald-50: #ecfdf5;
-    --theme-emerald-600: #059669;
-    --theme-amber-50: #fffbeb;
-    --theme-amber-100: #fef3c7;
-    --theme-amber-200: #fde68a;
-    --theme-amber-600: #d97706;
-    --theme-amber-900: #78350f;
-    --theme-brand-50: var(--color-brand-50);
-    --theme-brand-100: var(--color-brand-100);
-    --theme-brand-600: var(--color-brand-600);
-    --theme-brand-900: var(--color-brand-900);
+    /* Light: chart paper, read by daylight */
+    --theme-paper: #f5f1e4;
+    --theme-surface: #fbf9f1;
+    --theme-surface-hover: #efe9d8;
+    --theme-surface-active: #e7dfc9;
+    --theme-ink: #14213d;
+    --theme-ink-muted: #56617a;
+    --theme-ink-faint: #8992a6;
+    --theme-line: #ddd3b8;
+    --theme-line-strong: #c9bc98;
+
+    --theme-track: #c1502b;
+    --theme-track-deep: #9c3d20;
+    --theme-track-soft: #f1d9c9;
+    --theme-cone-bg: #e3e6ec;
+
+    --theme-advisory: #92661c;
+    --theme-advisory-bg: #f3e6c4;
+    --theme-verified: #2f6b4c;
+    --theme-verified-bg: #dcebe1;
+    --theme-danger: #a62f26;
+    --theme-danger-bg: #f3dcd8;
   }
   .dark {
-    --theme-ink: #f8fafc;
-    --theme-paper: #020617;
-    --theme-line: #1e293b;
-    --theme-line-strong: #334155;
-    --theme-surface: #0f172a;
-    --theme-surface-hover: #1e293b;
-    --theme-surface-active: #334155;
-    --theme-text-muted: #cbd5e1;
-    --theme-text-secondary: #cbd5e1;
-    --theme-text-primary: #94a3b8;
-    --theme-inverted-bg: #f8fafc;
-    --theme-inverted-text: #0f172a;
-    --theme-red-50: #450a0a;
-    --theme-red-600: #fca5a5;
-    --theme-emerald-50: #022c22;
-    --theme-emerald-600: #6ee7b7;
-    --theme-amber-50: #451a03;
-    --theme-amber-100: #78350f;
-    --theme-amber-200: #92400e;
-    --theme-amber-600: #fcd34d;
-    --theme-amber-900: #fef3c7;
-    --theme-brand-50: var(--color-brand-700);
-    --theme-brand-100: var(--color-brand-800);
-    --theme-brand-600: var(--color-brand-300);
-    --theme-brand-900: var(--color-brand-100);
+    /* Dark: the chart room at night, red-safe lighting */
+    --theme-paper: #0c1424;
+    --theme-surface: #121b2e;
+    --theme-surface-hover: #1a2438;
+    --theme-surface-active: #212d45;
+    --theme-ink: #f1ead9;
+    --theme-ink-muted: #abb2c2;
+    --theme-ink-faint: #abb2c2;
+    --theme-line: #26314a;
+    --theme-line-strong: #34405c;
+
+    --theme-track: #e2795c;
+    --theme-track-deep: #c15a3d;
+    --theme-track-soft: #3a2a22;
+    --theme-cone-bg: #24304a;
+
+    --theme-advisory: #e4be6e;
+    --theme-advisory-bg: #332a15;
+    --theme-verified: #7fc69e;
+    --theme-verified-bg: #16281f;
+    --theme-danger: #ef5344;
+    --theme-danger-bg: #3a1d19;
   }
 
   html {
@@ -96,9 +93,14 @@
     user-select: auto;
     -webkit-user-select: auto;
   }
-  
+
   h1, h2, h3, h4 {
     @apply font-display tracking-tight;
+  }
+
+  ::selection {
+    background: var(--theme-track-soft);
+    color: var(--theme-track-deep);
   }
 }
 
@@ -110,59 +112,14 @@
   scrollbar-width: none;
 }
 
-/* Custom Data Grid Styles */
-.data-grid-row {
-  @apply grid grid-cols-[1fr_auto_auto] md:grid-cols-[1fr_1fr_1fr_auto] items-center gap-4 py-3 px-4 border-b border-line hover:bg-slate-50 transition-colors;
+.legend-label {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
 }
 
-@layer utilities {
-  .bg-white { background-color: var(--theme-surface); }
-  .hover\:bg-white:hover { background-color: var(--theme-surface); }
-  .focus\:bg-white:focus { background-color: var(--theme-surface); }
-  
-  .text-white { color: #ffffff; }
-  
-  .bg-slate-50 { background-color: var(--theme-surface-hover); }
-  .hover\:bg-slate-50:hover { background-color: var(--theme-surface-hover); }
-  
-  .bg-slate-100 { background-color: var(--theme-surface-active); }
-  .hover\:bg-slate-100:hover { background-color: var(--theme-surface-active); }
-  
-  .bg-slate-200 { background-color: var(--theme-line); }
-  .hover\:bg-slate-200:hover { background-color: var(--theme-line); }
-  
-  .bg-slate-800 { background-color: var(--theme-surface-active); }
-  .border-slate-800 { border-color: var(--theme-line-strong); }
-  
-  .bg-slate-900 { background-color: var(--theme-inverted-bg); color: var(--theme-inverted-text); }
-  .hover\:bg-slate-900:hover { background-color: var(--theme-inverted-bg); }
-  
-  .text-slate-300 { color: var(--theme-text-muted); }
-  .text-slate-400 { color: var(--theme-text-muted); }
-  .text-slate-500 { color: var(--theme-text-secondary); }
-  .text-slate-600 { color: var(--theme-text-primary); }
-  .text-slate-900 { color: var(--theme-ink); }
-  
-  .border-slate-100 { border-color: var(--theme-line); }
-  .border-slate-200 { border-color: var(--theme-line-strong); }
-
-  .bg-red-50 { background-color: var(--theme-red-50); }
-  .text-red-600 { color: var(--theme-red-600); }
-  .bg-emerald-50 { background-color: var(--theme-emerald-50); }
-  .text-emerald-600 { color: var(--theme-emerald-600); }
-
-  .bg-amber-50 { background-color: var(--theme-amber-50); }
-  .bg-amber-100 { background-color: var(--theme-amber-100); }
-  .border-amber-200 { border-color: var(--theme-amber-200); }
-  .text-amber-600 { color: var(--theme-amber-600); }
-  .text-amber-900 { color: var(--theme-amber-900); }
-
-  .bg-brand-50 { background-color: var(--theme-brand-50); }
-  .bg-brand-100 { background-color: var(--theme-brand-100); }
-  .border-brand-100 { border-color: var(--theme-brand-100); }
-  .text-brand-600 { color: var(--theme-brand-600); }
-  .text-brand-900 { color: var(--theme-brand-900); }
-
-  /* Keep toggle dots and specific white elements actually white */
-  .bg-\[\#ffffff\] { background-color: #ffffff !important; }
+.tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }

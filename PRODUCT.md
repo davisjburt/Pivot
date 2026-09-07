@@ -14,9 +14,13 @@ General public interested in long-term weight management — not yet launched, b
 
 A motivational weight tracking app focused on long-term trends and insights rather than raw numbers (per the project's own description). It exists to make the *trend* the headline experience instead of the scale reading, so progress stays legible and encouraging even when individual days are noisy.
 
+**Confirmed future direction (not yet built):** the product is intended to grow into a fuller AI-assisted health-tracking platform — an AI macro/nutrition tracker (almost certainly photo- or description-based food logging with AI-estimated macros, given the "AI" framing) and a body scanner (a camera-based body-composition or progress-photo capture flow). Neither exists yet; this is a confirmed roadmap direction, not a built capability, and nothing about it should be fabricated as already working. It does mean the trend-tracking product should not be designed as a closed, single-purpose scale app — the information architecture and visual system should have room to grow into a multi-domain health tracker without a second identity being bolted on later.
+
 ## Positioning
 
 The mechanism a competitor can't casually copy: a configurable smoothing window that turns noisy daily weigh-ins into a trend line, paired with milestone bucketing, predictive goal-date projections, and contextual tagging (Ate Late, High Sodium, Travel, Heavy Workout, Poor Sleep, Stress, Sore) that *explains* spikes instead of just displaying them. "Hide raw numbers" is a first-class mode, not a hidden setting — the app can be used entirely trend-first.
+
+Longer-term, once macro tracking and body scanning ship, the differentiator widens to "AI-assisted health tracking that explains your data instead of just displaying it" — the same explain-don't-punish mechanism applied beyond just weight (e.g. macro trends, not just daily calorie totals; body-scan trends, not just a single scary photo comparison). This is directional, not a commitment to specific mechanics for the unbuilt features.
 
 ## Operating Context
 
@@ -34,6 +38,7 @@ The mechanism a competitor can't casually copy: a configurable smoothing window 
 - The Cloudflare OAuth/session implementation is currently same-origin. A distributable iOS build needs a deployed Worker URL plus a native OAuth handoff before release.
 - New users receive the standard `user` role in D1. Any future administration surface must explicitly authorize elevated roles server-side before public launch.
 - Terminology: **trend weight** (smoothed value), **raw weight** (an actual logged entry), **milestone** (a chunk of progress toward the goal, sized by `milestoneSize`), **smoothing window** (number of days of data averaged into the trend).
+- **Explicitly undecided:** whether macro tracking and body scanning ship as new tabs in this same app, a separate mode, or a restructured IA; what AI provider/model does the macro estimation or scan analysis; whether scan photos are stored (and if so, how privacy-sensitively) or processed transiently. None of this should be assumed or designed as fixed yet — only that the current redesign should leave room for it (e.g. nav/IA headroom, a visual system that can hold a camera-capture flow) without building it now.
 
 ## Brand Commitments
 
