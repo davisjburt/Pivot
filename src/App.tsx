@@ -13,9 +13,8 @@ import {
 } from 'lucide-react';
 import { format, parseISO, addDays, differenceInDays, startOfWeek, eachDayOfInterval } from 'date-fns';
 import {
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Line
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, ComposedChart, Area, Line, ReferenceLine
 } from 'recharts';
-import ReactECharts from 'echarts-for-react';
 
 import { AppState, WeightEntry, UserGoal, DEFAULT_TAGS, AppSettings } from './types';
 import { storageService } from './services/storage';
@@ -724,7 +723,6 @@ function HistoryView({ entries, onDelete, unit, hideRawNumbers }: { entries: Wei
 }
 
 function InsightsView({ state }: { state: AppState }) {
-  const [isProjectionFullscreen, setIsProjectionFullscreen] = useState(false);
   const ratePerDay = useMemo(
     () => analyticsService.getRateOfChange(state.entries, 30, state.settings.smoothingWindow),
     [state.entries, state.settings.smoothingWindow]
@@ -756,23 +754,23 @@ function InsightsView({ state }: { state: AppState }) {
       trendByDay.set(format(parseISO(entry.date), 'yyyy-MM-dd'), entry.trendWeight);
     });
 
-    // Start the chart at the first period of consistent logging
-    // (>= 3 entries within a rolling 14-day window).
-    let consistentStartIdx = 0;
-    for (let i = 0; i < sortedEntries.length; i++) {
-      const windowStart = parseISO(sortedEntries[i].date);
-      let countInWindow = 1;
-      for (let j = i + 1; j < sortedEntries.length; j++) {
-        const diff = differenceInDays(parseISO(sortedEntries[j].date), windowStart);
-        if (diff > 14) break;
-        countInWindow++;
-      }
-      if (countInWindow >= 3) {
-        consistentStartIdx = i;
-        break;
-      }
+    // Start the chart at the most recent logging restart: find the last gap
+    // longer than 30 days between consecutive entries and begin just after
+    // it. A dormant stretch (weeks or years) between two active periods of
+    // logging shouldn't dominate the forecast's timeline with empty days —
+    // the forecast should reflect current behavior, not the user's entire
+    // history.
+    // A gap only counts as a genuine restart if a real cluster of logging
+    // follows it — otherwise one stray entry after a dormant stretch would
+    // collapse the whole chart down to a single point.
+    const MIN_ENTRIES_AFTER_RESTART = 5;
+    let restartIdx = 0;
+    for (let i = 1; i < sortedEntries.length; i++) {
+      const gap = differenceInDays(parseISO(sortedEntries[i].date), parseISO(sortedEntries[i - 1].date));
+      const entriesAfter = sortedEntries.length - i;
+      if (gap > 30 && entriesAfter >= MIN_ENTRIES_AFTER_RESTART) restartIdx = i;
     }
-    const firstActualDate = parseISO(sortedEntries[consistentStartIdx].date);
+    const firstActualDate = parseISO(sortedEntries[restartIdx].date);
     const latestTrendPoint = trendData[trendData.length - 1];
     const latestDate = parseISO(latestTrendPoint.date);
     const goalDate = predictions?.likely ?? addDays(latestDate, 90);
@@ -889,84 +887,26 @@ function InsightsView({ state }: { state: AppState }) {
     const pad = Math.max(2, (max - min) * 0.3);
     return [min - pad, max + pad] as const;
   }, [projectionRows, state.goal]);
-  const projectionMinWidth = Math.max(920, projectionRows.length * 8);
-  const projectionChartOption = useMemo(() => {
-    const dates = projectionRows.map(r => format(r.date, 'MMM d'));
-    const actual = projectionRows.map(r => r.actual);
-    const actualGapBridge = projectionRows.map(() => null as number | null);
-    const actualIndexes = actual
-      .map((v, i) => (v !== null ? i : -1))
-      .filter(i => i >= 0);
-    for (let k = 0; k < actualIndexes.length - 1; k++) {
-      const start = actualIndexes[k];
-      const end = actualIndexes[k + 1];
-      if (end - start <= 1) continue;
-      const startVal = actual[start] as number;
-      const endVal = actual[end] as number;
-      for (let i = start; i <= end; i++) {
-        const t = (i - start) / (end - start);
-        actualGapBridge[i] = startVal + ((endVal - startVal) * t);
-      }
-    }
-    const trend = projectionRows.map(r => r.trend);
-    const likely = projectionRows.map(r => r.projectedLikely);
-    const optimistic = projectionRows.map(r => r.projectedOptimistic);
-    const conservative = projectionRows.map(r => r.projectedConservative);
-    const latestActualIndex = projectionRows.findLastIndex(r => r.phase === 'Actual');
-
+  // A time-scaled axis (not one category per day) so the chart lays out at
+  // any width without forcing a horizontal scroll — the old chart's actual
+  // mobile/perf problem.
+  const forecastChartData = useMemo(() => projectionRows.map(r => {
+    const hasBand = r.projectedOptimistic !== null && r.projectedConservative !== null;
+    const bandLow = hasBand ? Math.min(r.projectedOptimistic as number, r.projectedConservative as number) : null;
+    const bandHigh = hasBand ? Math.max(r.projectedOptimistic as number, r.projectedConservative as number) : null;
     return {
-      animation: true,
-      grid: { left: 44, right: 22, top: 28, bottom: 72 },
-      tooltip: { trigger: 'axis' },
-      legend: {
-        top: 0,
-        textStyle: { color: '#56617a', fontSize: 11, fontFamily: 'Inter' },
-        data: ['Actual', 'Gap Bridge', 'Trend', 'Likely', 'Optimistic', 'Conservative']
-      },
-      xAxis: {
-        type: 'category',
-        data: dates,
-        axisLabel: { color: '#8992a6', fontSize: 10 },
-        axisLine: { lineStyle: { color: '#ddd3b8' } }
-      },
-      yAxis: {
-        type: 'value',
-        min: projectionYDomain[0],
-        max: projectionYDomain[1],
-        axisLabel: { color: '#8992a6', fontSize: 10 },
-        splitLine: { lineStyle: { color: '#e7dfc9' } }
-      },
-      dataZoom: [
-        { type: 'inside', xAxisIndex: 0, filterMode: 'none' },
-        { type: 'slider', xAxisIndex: 0, height: 20, bottom: 20, borderColor: '#ddd3b8' },
-        { type: 'inside', yAxisIndex: 0, filterMode: 'none' }
-      ],
-      series: [
-        { name: 'Actual', type: 'line', data: actual, showSymbol: true, symbolSize: 4, smooth: 0.25, lineStyle: { color: '#8992a6', width: 2 } },
-        {
-          name: 'Gap Bridge',
-          type: 'line',
-          data: actualGapBridge,
-          showSymbol: false,
-          smooth: 0.45,
-          lineStyle: { color: '#92661c', width: 2, type: 'dashed', opacity: 0.9 }
-        },
-        { name: 'Trend', type: 'line', data: trend, showSymbol: false, smooth: 0.3, lineStyle: { color: '#c1502b', width: 3 } },
-        { name: 'Likely', type: 'line', data: likely, showSymbol: false, smooth: 0.3, lineStyle: { color: '#c1502b', width: 2, type: 'dashed', opacity: 0.6 } },
-        { name: 'Optimistic', type: 'line', data: optimistic, showSymbol: false, smooth: 0.3, lineStyle: { color: '#2f6b4c', width: 2, type: 'dashed' } },
-        { name: 'Conservative', type: 'line', data: conservative, showSymbol: false, smooth: 0.3, lineStyle: { color: '#92661c', width: 2, type: 'dashed' } }
-      ],
-      markLine: {
-        symbol: 'none',
-        lineStyle: { type: 'dashed', color: '#14213d', width: 1.5 },
-        data: [{ yAxis: state.goal?.targetWeight, name: 'Goal' }]
-      },
-      markArea: latestActualIndex >= 0 ? {
-        itemStyle: { color: 'rgba(193, 80, 43, 0.06)' },
-        data: [[{ xAxis: latestActualIndex + 1 }, { xAxis: projectionRows.length - 1 }]]
-      } : undefined
+      x: r.date.getTime(),
+      actual: r.actual,
+      trend: r.trend,
+      likely: r.projectedLikely,
+      bandBase: bandLow,
+      bandRange: hasBand ? (bandHigh as number) - (bandLow as number) : null,
     };
-  }, [projectionRows, projectionYDomain, state.goal?.targetWeight]);
+  }), [projectionRows]);
+  const todayTimestamp = trendData.length > 0 ? parseISO(trendData[trendData.length - 1].date).getTime() : null;
+  const forecastSpansYear = forecastChartData.length > 1
+    && (forecastChartData[forecastChartData.length - 1].x - forecastChartData[0].x) > 300 * 24 * 60 * 60 * 1000;
+  const forecastDateFormat = forecastSpansYear ? 'MMM yyyy' : 'MMM d';
 
   return (
     <motion.div
@@ -1080,49 +1020,90 @@ function InsightsView({ state }: { state: AppState }) {
         </div>
 
         <section className="bg-surface border border-line rounded-md p-5">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-bold text-ink">Start-to-Goal Forecast</h3>
-              <p className="legend-label text-[9px] text-ink-faint mt-1">
-                Observed readings through today, statistical projection after
-              </p>
-            </div>
-            <button
-              onClick={() => setIsProjectionFullscreen(true)}
-              className="px-3 py-2 rounded-sm bg-surface-hover hover:bg-surface-active legend-label text-[10px] text-ink-muted"
-            >
-              Full Screen
-            </button>
+          <div className="mb-4">
+            <h3 className="text-sm font-bold text-ink">Start-to-Goal Forecast</h3>
+            <p className="legend-label text-[9px] text-ink-faint mt-1">
+              Actual readings, then a forecast range to your goal
+            </p>
           </div>
-          <div className="overflow-x-auto rounded-sm border border-line">
-            <div style={{ minWidth: `${projectionMinWidth}px` }}>
-              <ReactECharts option={projectionChartOption} style={{ width: '100%', height: 360 }} />
+          {forecastChartData.length === 0 ? (
+            <div className="h-[220px] flex items-center justify-center text-center text-ink-faint text-sm px-6">
+              Log a few more readings to see your forecast.
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="h-[240px] w-full -ml-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={forecastChartData} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
+                    <CartesianGrid strokeDasharray="2 4" vertical={false} stroke="var(--theme-line)" />
+                    <XAxis
+                      dataKey="x"
+                      type="number"
+                      scale="time"
+                      domain={['dataMin', 'dataMax']}
+                      tickFormatter={(v) => format(new Date(v), forecastDateFormat)}
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: 'var(--theme-ink-faint)', fontSize: 10 }}
+                      dy={8}
+                      minTickGap={40}
+                    />
+                    <YAxis
+                      domain={projectionYDomain}
+                      hide
+                    />
+                    {state.goal && (
+                      <ReferenceLine y={state.goal.targetWeight} stroke="var(--theme-ink)" strokeDasharray="4 4" strokeWidth={1.5} />
+                    )}
+                    {todayTimestamp !== null && (
+                      <ReferenceLine x={todayTimestamp} stroke="var(--theme-line-strong)" strokeDasharray="3 3" />
+                    )}
+                    <Tooltip
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload || !payload.length) return null;
+                        const row = payload[0]?.payload as (typeof forecastChartData)[number] | undefined;
+                        if (!row) return null;
+                        return (
+                          <div className="bg-surface p-3 rounded-md shadow-lg border border-line">
+                            <p className="legend-label text-[10px] text-ink-faint mb-1">{format(new Date(label), 'MMMM d, yyyy')}</p>
+                            {row.actual !== null && !state.settings.hideRawNumbers && (
+                              <p className="text-xs text-ink-muted">Actual {row.actual.toFixed(1)}</p>
+                            )}
+                            {row.trend !== null && <p className="tabular text-sm font-bold text-track-deep">Trend {row.trend.toFixed(1)}</p>}
+                            {row.likely !== null && (
+                              <>
+                                <p className="tabular text-sm font-bold text-track-deep">Likely {row.likely.toFixed(1)}</p>
+                                {row.bandBase !== null && row.bandRange !== null && (
+                                  <p className="text-xs text-ink-muted">Range {row.bandBase.toFixed(1)}–{(row.bandBase + row.bandRange).toFixed(1)}</p>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        );
+                      }}
+                    />
+                    <Area dataKey="bandBase" stackId="band" stroke="none" fill="transparent" isAnimationActive={false} />
+                    <Area dataKey="bandRange" stackId="band" stroke="none" fill="var(--theme-cone-bg)" isAnimationActive={false} />
+                    {!state.settings.hideRawNumbers && (
+                      <Line dataKey="actual" stroke="var(--theme-line-strong)" strokeWidth={1.5} dot={{ r: 2 }} isAnimationActive={false} connectNulls={false} />
+                    )}
+                    <Line dataKey="trend" stroke="var(--theme-track)" strokeWidth={2.5} dot={false} isAnimationActive={false} connectNulls={false} />
+                    <Line dataKey="likely" stroke="var(--theme-track)" strokeWidth={2} strokeDasharray="5 4" dot={false} isAnimationActive={false} connectNulls={false} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3 justify-center">
+                {!state.settings.hideRawNumbers && (
+                  <span className="flex items-center gap-1.5 legend-label text-[9px] text-ink-muted"><span className="w-2.5 h-0.5 bg-line-strong" />Actual</span>
+                )}
+                <span className="flex items-center gap-1.5 legend-label text-[9px] text-ink-muted"><span className="w-2.5 h-0.5 bg-track" />Trend / Likely</span>
+                <span className="flex items-center gap-1.5 legend-label text-[9px] text-ink-muted"><span className="w-2.5 h-2.5 bg-cone" />Forecast range</span>
+                <span className="flex items-center gap-1.5 legend-label text-[9px] text-ink-muted"><span className="w-2.5 h-0.5 border-t border-dashed border-ink" />Goal</span>
+              </div>
+            </>
+          )}
         </section>
       </div>
-
-      {isProjectionFullscreen && (
-        <div className="fixed inset-0 z-[200] bg-paper p-4 md:p-6">
-          <div className="h-full w-full bg-surface border border-line rounded-md shadow-2xl flex flex-col">
-            <div className="p-4 border-b border-line flex items-center justify-between gap-3">
-              <button
-                onClick={() => setIsProjectionFullscreen(false)}
-                className="px-3 py-2 rounded-sm bg-surface-hover hover:bg-surface-active legend-label text-[10px] text-ink-muted"
-              >
-                Back
-              </button>
-              <h3 className="text-sm md:text-base font-bold text-ink">Forecast Explorer</h3>
-              <p className="legend-label text-[9px] text-ink-faint">Pinch/scroll to zoom and pan</p>
-            </div>
-            <div className="flex-1 overflow-x-auto p-4">
-              <div style={{ minWidth: `${Math.max(1200, projectionRows.length * 10)}px`, height: '100%' }}>
-                <ReactECharts option={projectionChartOption} style={{ width: '100%', height: '100%' }} />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </motion.div>
   );
 }
