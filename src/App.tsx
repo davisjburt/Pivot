@@ -142,10 +142,21 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
+    const statusBarMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+    const themeColorMeta = document.querySelector('meta[name="theme-color"]');
     if (state.settings?.darkMode) {
       document.documentElement.classList.add('dark');
+      // iOS only offers opaque bar styles with dark icons ("default") or a
+      // translucent/black bar with light icons — there's no "translucent
+      // with dark icons" option, so dark mode has to go translucent to get
+      // icons that read against the app's dark background, while light mode
+      // stays on the opaque default bar that already matches its cream tone.
+      statusBarMeta?.setAttribute('content', 'black-translucent');
+      themeColorMeta?.setAttribute('content', '#0c1424');
     } else {
       document.documentElement.classList.remove('dark');
+      statusBarMeta?.setAttribute('content', 'default');
+      themeColorMeta?.setAttribute('content', '#f5f1e4');
     }
   }, [state.settings?.darkMode]);
 
