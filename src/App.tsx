@@ -249,7 +249,7 @@ export default function App() {
 
   if (!isAuthReady) {
     return (
-      <div className="fixed inset-0 bg-[#2a2620] flex justify-center overflow-hidden">
+      <div className="fixed inset-0 h-dvh bg-[#2a2620] flex justify-center overflow-hidden">
         <div className="w-full max-w-md bg-paper h-full relative shadow-2xl flex items-center justify-center">
           <div className="w-10 h-10 border-2 border-line-strong border-t-track rounded-full animate-spin" />
         </div>
@@ -262,7 +262,7 @@ export default function App() {
   if (!state.onboarded) return <Onboarding onComplete={handleOnboard} initialWeight={state.entries[state.entries.length - 1]?.weight} />;
 
   return (
-    <div className="fixed inset-0 bg-[#2a2620] flex justify-center overflow-hidden">
+    <div className="fixed inset-0 h-dvh bg-[#2a2620] flex justify-center overflow-hidden">
       <div className="w-full max-w-md bg-paper h-full relative shadow-2xl flex flex-col overflow-hidden">
         <main className="flex-1 overflow-y-auto p-6 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-32 no-scrollbar">
           <AnimatePresence mode="wait">
@@ -321,7 +321,7 @@ function AuthView() {
   };
 
   return (
-    <div className="fixed inset-0 bg-[#2a2620] flex justify-center overflow-hidden">
+    <div className="fixed inset-0 h-dvh bg-[#2a2620] flex justify-center overflow-hidden">
       <div className="w-full max-w-md bg-paper h-full relative shadow-2xl flex flex-col items-center justify-center p-6 text-center">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -1826,7 +1826,7 @@ function Onboarding({ onComplete, initialWeight, initialUnit = 'lbs' }: any) {
   }, [initialWeight]);
 
   return (
-    <div className="fixed inset-0 bg-[#2a2620] flex justify-center overflow-hidden">
+    <div className="fixed inset-0 h-dvh bg-[#2a2620] flex justify-center overflow-hidden">
       <div className="w-full max-w-md bg-paper h-full relative shadow-2xl flex flex-col items-center justify-center p-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
